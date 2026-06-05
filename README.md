@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Infusive Media Automation Framework
 
 This is a Playwright + Python + Pytest automation framework using the Page Object Model (POM).
@@ -34,3 +35,6 @@ pytest tests/api
 
 ## Reports
 HTML reports will be generated in the `reports/` directory. Screenshots for failed tests will be saved in the `screenshots/` directory.
+=======
+# Infusive_Media
+>>>>>>> 19aebc9db785a4164a860b4d3bca100c49b1901a
