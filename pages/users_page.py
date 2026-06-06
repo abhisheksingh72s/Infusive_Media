@@ -90,9 +90,13 @@ class UsersPage:
         except ValueError:
             return False
 
+    def submit_empty_user_id(self):
+        dialog = self.page.get_by_role("dialog", name="Add New User")
+        dialog.get_by_label("User Id", exact=False).fill("")
+        dialog.get_by_role("button", name="Submit").click()
+
     def is_submit_button_disabled(self):
         return self.page.get_by_role("button", name="Submit").is_disabled()
 
     def get_validation_message(self, field_name):
-        # Pending Locator Confirmation
         raise NotImplementedError("Pending Locator Confirmation")

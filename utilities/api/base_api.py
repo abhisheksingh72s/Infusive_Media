@@ -3,10 +3,12 @@ import base64
 import json
 import logging
 import os
+from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
-load_dotenv()
+ROOT_DIR = Path(__file__).resolve().parents[2]
+load_dotenv(dotenv_path=ROOT_DIR / ".env", override=True)
 
 logger = logging.getLogger(__name__)
 

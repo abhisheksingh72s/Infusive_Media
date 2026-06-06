@@ -9,7 +9,7 @@ class LoginPage:
 
     def load(self):
         self.page.set_default_navigation_timeout(60000)
-        self.page.goto(self.url)
+        self.page.goto(self.url, wait_until="domcontentloaded")
 
     def is_illustration_visible(self):
         return self.page.get_by_role("img", name="Login Illustration").is_visible()
@@ -23,6 +23,9 @@ class LoginPage:
     def click_login(self):
         self.page.get_by_role("button", name="Login").click()
 
+    def click_remember_me(self):
+        self.page.get_by_text("Remember Me").click()
+
     def click_show_password(self):
         self.page.get_by_role("button", name="Show password").click()
 
@@ -30,9 +33,11 @@ class LoginPage:
         return self.page.get_by_role("button", name="Hide password").is_visible()
 
     def wait_for_dashboard(self):
-        self.page.wait_for_url("**/dashboard**", timeout=15000)
+        self.page.wait_for_url(lambda url: "/login" not in url, timeout=15000)
 
-    def login(self, email, password):
+    def login(self, email, password, remember_me=None):
         self.enter_email(email)
         self.enter_password(password)
+        if remember_me:
+            self.click_remember_me()
         self.click_login()
