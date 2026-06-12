@@ -135,6 +135,26 @@ def set_default_timeout(page):
 
 
 @pytest.fixture(scope="function", autouse=True)
+def monitor_api_failures(page):
+    """Monitor and print any API failures (HTTP status >= 400) during UI tests."""
+    def handle_response(response):
+        if "/api/" in response.url.lower():
+            if response.status >= 400:
+                logger.warning(
+                    "API Error detected: %s %s returned HTTP %s",
+                    response.request.method,
+                    response.url,
+                    response.status
+                )
+                print(
+                    f"\n[API ERROR TRIGGERED] Method: {response.request.method} | "
+                    f"URL: {response.url} | Status: {response.status}"
+                )
+    page.on("response", handle_response)
+    yield
+
+
+@pytest.fixture(scope="function", autouse=True)
 def module_reports(request):
     for report_type in MODULE_REPORT_DIRS:
         _module_report_path(request.node, report_type)
