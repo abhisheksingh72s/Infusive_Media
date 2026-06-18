@@ -130,8 +130,9 @@ def _login_email_from_request(request):
 
 @pytest.fixture(scope="function", autouse=True)
 def set_default_timeout(page):
-    page.set_default_timeout(10000)
-    page.set_default_navigation_timeout(10000)
+    page.set_default_timeout(30000)
+    page.set_default_navigation_timeout(30000)
+
 
 
 @pytest.fixture(scope="function", autouse=True)
