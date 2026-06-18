@@ -36,7 +36,7 @@ class CompanyPage:
         menu_item = self.page.get_by_role("menuitem").filter(has_text=f"(+{search_term})")
         menu_item.first.wait_for(state="visible")
         menu_item.first.click()
-    #This will created a new company name 
+
     def fill_quick_lead_form(self, name, email, phone, country, country_code=None):
         if name is not None:
             self.page.get_by_role("textbox", name="Name").fill(name)
@@ -193,3 +193,109 @@ class CompanyPage:
         self.page.get_by_role("button", name="Update").click()
         self.page.wait_for_url("**/company**", timeout=60000)
         self.page.locator("tbody tr").first.wait_for(timeout=60000)
+
+    def capture_toast(self, timeout=5000):
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("Attempting to capture toast notification...")
+        selectors = [
+            "div[role='status']",
+            "div[role='alert']",
+            ".toast",
+            ".hot-toast",
+            "[class*='toast']",
+            "[class*='Toast']"
+        ]
+        combined_selector = ", ".join(selectors)
+        
+        try:
+            logger.info(f"Waiting up to {timeout}ms for toast matching selectors: {combined_selector}")
+            self.page.locator(combined_selector).first.wait_for(state="visible", timeout=timeout)
+            logger.info("A toast element became visible in the DOM.")
+        except Exception:
+            logger.info("No toast element became visible within the timeout.")
+            pass
+            
+        texts = []
+        for sel in selectors:
+            try:
+                locs = self.page.locator(sel)
+                count = locs.count()
+                for i in range(count):
+                    el = locs.nth(i)
+                    if el.is_visible():
+                        txt = el.inner_text().strip()
+                        if txt:
+                            texts.append(txt)
+            except Exception:
+                pass
+        toast_text = " | ".join(set(texts))
+        logger.info(f"Captured Toast Content: '{toast_text}'")
+        return toast_text
+
+    def fill_stepper_poc_form(self, index, name, email, designation, phone, country_code="+1", same_as_phone=True):
+        self.page.locator(f"input[name='pocs.{index}.name']").fill(name)
+        self.page.locator(f"input[name='pocs.{index}.email']").fill(email)
+        designation_input = self.page.get_by_placeholder("Enter POC Designation").first
+        designation_input.click()
+        self.page.get_by_text(designation, exact=True).click()
+        self.select_poc_country_code(index, country_code)
+        self.page.locator(f"input[name='pocs.{index}.phoneNumber']").fill(phone)
+        if same_as_phone:
+            self.page.get_by_label("Same as Phone Number").first.click(force=True)
+
+    def click_stepper_next(self):
+        self.page.get_by_role("button", name="Next").click()
+        self.page.locator("input[name='pocs.0.name']").wait_for(timeout=60000)
+
+    def fill_company_name(self, name):
+        self.page.locator("input[name='companyName']").fill(name)
+        
+    def fill_company_email(self, email):
+        self.page.locator("input[name='companyEmail']").fill(email)
+        
+    def fill_company_phone(self, phone):
+        try:
+            self.page.locator("input[name='companyPhone']").fill(phone)
+        except Exception:
+            pass
+
+    def type_quick_lead_name_keyboard(self, text):
+        name_input = self.page.get_by_role("textbox", name="Name")
+        name_input.click()
+        self.page.keyboard.type(text)
+
+    def navigate_to_company_list_if_needed(self):
+        url = self.page.url
+        if "add-new-company-form" in url:
+            base_part = url.split("/add-new-company-form")[0]
+            self.page.goto(f"{base_part}/company")
+            self.page.wait_for_timeout(2000)
+        elif "add-new-company-poc" in url:
+            try:
+                self.page.get_by_role("button", name="Back").click()
+            except Exception:
+                base_part = url.split("/add-new-company-poc")[0]
+                self.page.goto(f"{base_part}/company")
+            self.page.wait_for_timeout(2000)
+        elif "quick-lead" in url:
+            try:
+                self.page.get_by_role("button", name="Back").click()
+            except Exception:
+                base_part = url.split("/quick-lead")[0]
+                self.page.goto(f"{base_part}/company")
+            self.page.wait_for_timeout(2000)
+
+    def clear_company_name(self):
+        field = self.page.get_by_role("textbox", name="Company Name")
+        field.click()
+        self.page.wait_for_timeout(300)
+        field.select_text()
+        self.page.keyboard.press("Backspace")
+
+    def clear_company_email(self):
+        field = self.page.get_by_role("textbox", name="Company Email")
+        field.click()
+        self.page.wait_for_timeout(300)
+        field.select_text()
+        self.page.keyboard.press("Backspace")

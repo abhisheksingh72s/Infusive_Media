@@ -71,43 +71,6 @@ def new_company(company_page):
         "poc_phone": data["phone"]
     }
 
-def capture_toast(page, timeout=5000):
-    logger.info("Attempting to capture toast notification...")
-    selectors = [
-        "div[role='status']",
-        "div[role='alert']",
-        ".toast",
-        ".hot-toast",
-        "[class*='toast']",
-        "[class*='Toast']"
-    ]
-    combined_selector = ", ".join(selectors)
-    
-    try:
-        logger.info(f"Waiting up to {timeout}ms for toast matching selectors: {combined_selector}")
-        page.locator(combined_selector).first.wait_for(state="visible", timeout=timeout)
-        logger.info("A toast element became visible in the DOM.")
-    except Exception:
-        logger.info("No toast element became visible within the timeout.")
-        pass
-        
-    texts = []
-    for sel in selectors:
-        try:
-            locs = page.locator(sel)
-            count = locs.count()
-            for i in range(count):
-                el = locs.nth(i)
-                if el.is_visible():
-                    txt = el.inner_text().strip()
-                    if txt:
-                        texts.append(txt)
-        except Exception:
-            pass
-    toast_text = " | ".join(set(texts))
-    logger.info(f"Captured Toast Content: '{toast_text}'")
-    return toast_text
-
 
 # ===========================================================================
 # ORIGINAL FLOWS (1 to 5)
@@ -118,8 +81,6 @@ def capture_toast(page, timeout=5000):
 # ---------------------------------------------------------------------------
 @pytest.mark.login_as("PreSales2@mailinator.com")
 def test_add_new_company_flow(company_page):
-    page = company_page.page
-    
     logger.info("--- STARTING FLOW 1: ADD NEW COMPANY & DUPLICATE VALIDATION ---")
     
     logger.info("Step 1.1: Generating localized fake company details (code: +1)")
@@ -150,7 +111,7 @@ def test_add_new_company_flow(company_page):
     
     logger.info("Step 1.6 [Create]: Clicking 'Save' and auto-waiting for success toast...")
     company_page.page.get_by_role("button", name="Save").click()
-    toast_text = capture_toast(company_page.page)
+    toast_text = company_page.capture_toast()
     logger.info(f"Creation toast returned: '{toast_text}'")
     
     logger.info("Step 1.7 [Create]: Waiting for redirect to Company table list page...")
@@ -188,20 +149,16 @@ def test_add_new_company_flow(company_page):
     company_page.select_service("UI/UX Design")
     
     logger.info("Step 1.15 [Duplicate]: Clicking Save to trigger backend duplicate validation...")
-    page.get_by_role("button", name="Save").click()
+    company_page.page.get_by_role("button", name="Save").click()
     
     logger.info("Step 1.16 [Duplicate]: Auto-waiting for validation toast alert...")
-    toast_text = capture_toast(page)
+    toast_text = company_page.capture_toast()
     
-    url_after = page.url
+    url_after = company_page.page.url
     logger.info(f"Page state after duplicate submit: URL='{url_after}'")
     
     logger.info("Step 1.17 [Duplicate]: Cleaning up / resetting form state to prevent test pollution...")
-    if "add-new-company-form" in url_after:
-        base_part = url_after.split("/add-new-company-form")[0]
-        logger.info(f"Redirecting back to list page: {base_part}/company")
-        page.goto(f"{base_part}/company")
-        page.wait_for_timeout(2000)
+    company_page.navigate_to_company_list_if_needed()
         
     logger.info("Step 1.18 [Duplicate]: Asserting duplicate validation warning/toast is present...")
     assert "duplicate" in toast_text.lower() or "already exists" in toast_text.lower(), \
@@ -214,8 +171,6 @@ def test_add_new_company_flow(company_page):
 # ---------------------------------------------------------------------------
 @pytest.mark.login_as("PreSales2@mailinator.com")
 def test_add_new_company_poc_flow(company_page):
-    page = company_page.page
-    
     logger.info("--- STARTING FLOW 2: ADD COMPANY & POC & DUPLICATE VALIDATION ---")
     
     logger.info("Step 2.1: Generating localized company and POC details (code: +1)...")
@@ -247,34 +202,27 @@ def test_add_new_company_poc_flow(company_page):
     company_page.select_service("UI/UX Design")
     
     logger.info("Step 2.6 [Create]: Clicking 'Next' to advance to the POC stepper...")
-    company_page.click_next()
+    company_page.click_stepper_next()
     
-    logger.info("Step 2.7 [Create]: Filling POC form fields (Name, Email)...")
-    page.locator("input[name='pocs.0.name']").fill(poc_name)
-    page.locator("input[name='pocs.0.email']").fill(poc_email)
-    
-    logger.info("Step 2.8 [Create]: Selecting POC Designation 'HR'...")
-    designation_input = page.get_by_placeholder("Enter POC Designation").first
-    designation_input.click()
-    page.get_by_text("HR", exact=True).click()
-    
-    logger.info("Step 2.9 [Create]: Selecting POC country code '+1'...")
-    company_page.select_poc_country_code(0, "+1")
-    
-    logger.info("Step 2.10 [Create]: Filling POC phone number...")
-    page.locator("input[name='pocs.0.phoneNumber']").fill(phone)
-    
-    logger.info("Step 2.11 [Create]: Clicking 'Same as Phone Number' for Whatsapp...")
-    page.get_by_label("Same as Phone Number").first.click(force=True)
+    logger.info("Step 2.7 [Create]: Filling POC form fields (Name, Email, Designation, Phone)...")
+    company_page.fill_stepper_poc_form(
+        index=0,
+        name=poc_name,
+        email=poc_email,
+        designation="HR",
+        phone=phone,
+        country_code="+1",
+        same_as_phone=True
+    )
     
     logger.info("Step 2.12 [Create]: Clicking 'Save' and auto-waiting for creation toast...")
-    page.get_by_text("Save", exact=True).click()
-    toast_text = capture_toast(page)
+    company_page.page.get_by_text("Save", exact=True).click()
+    toast_text = company_page.capture_toast()
     logger.info(f"Creation toast returned: '{toast_text}'")
     
     logger.info("Step 2.13 [Create]: Waiting for redirect back to list page...")
-    page.wait_for_url("**/company**", timeout=15000)
-    page.locator("tbody tr").first.wait_for(timeout=30000)
+    company_page.page.wait_for_url("**/company**", timeout=15000)
+    company_page.page.locator("tbody tr").first.wait_for(timeout=30000)
     logger.info("Redirected and table body loaded.")
     
     logger.info("Step 2.14 [Create]: Asserting successful creation toast contains validation keywords...")
@@ -304,30 +252,23 @@ def test_add_new_company_poc_flow(company_page):
     company_page.select_service("UI/UX Design")
     
     logger.info("Step 2.20 [Duplicate]: Clicking Next (to test stepper validation blocking)...")
-    page.get_by_role("button", name="Next").click()
+    company_page.page.get_by_role("button", name="Next").click()
     
     logger.info("Step 2.21 [Duplicate]: Auto-waiting for validation toast alert...")
-    toast_text = capture_toast(page, timeout=3000)
+    toast_text = company_page.capture_toast(timeout=3000)
     
     poc_name_visible = False
     try:
-        poc_name_visible = page.get_by_role("textbox", name="POC Name").is_visible()
+        poc_name_visible = company_page.page.locator("input[name='pocs.0.name']").is_visible()
     except Exception:
         pass
     logger.info(f"Is POC Name input field visible? -> {poc_name_visible}")
     
-    url_after = page.url
+    url_after = company_page.page.url
     logger.info(f"Page state after duplicate next: URL='{url_after}'")
     
     logger.info("Step 2.22 [Duplicate]: Cleaning up stepper wizard state...")
-    if "add-new-company-poc" in url_after:
-        try:
-            page.get_by_role("button", name="Back").click()
-        except Exception:
-            base_part = url_after.split("/add-new-company-poc")[0]
-            logger.info(f"Bypassing Back button and loading: {base_part}/company")
-            page.goto(f"{base_part}/company")
-        page.wait_for_timeout(2000)
+    company_page.navigate_to_company_list_if_needed()
         
     logger.info("Step 2.23 [Duplicate]: Asserting that the stepper was blocked (POC Name field is NOT visible)...")
     assert not poc_name_visible, \
@@ -340,8 +281,6 @@ def test_add_new_company_poc_flow(company_page):
 # ---------------------------------------------------------------------------
 @pytest.mark.login_as("PreSales2@mailinator.com")
 def test_add_quick_lead_flow(company_page):
-    page = company_page.page
-    
     logger.info("--- STARTING FLOW 3: ADD QUICK LEAD & DUPLICATE VALIDATION ---")
     
     logger.info("Step 3.1: Generating localized lead details (code: +1)...")
@@ -365,13 +304,13 @@ def test_add_quick_lead_flow(company_page):
     )
     
     logger.info("Step 3.4 [Create]: Clicking 'Save' and auto-waiting for success toast...")
-    page.get_by_role("button", name="Save").click()
-    toast_text = capture_toast(page)
+    company_page.page.get_by_role("button", name="Save").click()
+    toast_text = company_page.capture_toast()
     logger.info(f"Creation toast returned: '{toast_text}'")
     
     logger.info("Step 3.5 [Create]: Waiting for redirect back to list page...")
-    page.wait_for_url("**/company**", timeout=15000)
-    page.locator("tbody tr").first.wait_for(timeout=30000)
+    company_page.page.wait_for_url("**/company**", timeout=15000)
+    company_page.page.locator("tbody tr").first.wait_for(timeout=30000)
     logger.info("Redirected and table body loaded.")
     
     logger.info("Step 3.6 [Create]: Asserting successful creation toast contains validation keywords...")
@@ -396,23 +335,16 @@ def test_add_quick_lead_flow(company_page):
     )
     
     logger.info("Step 3.10 [Duplicate]: Clicking Save to trigger validation...")
-    page.get_by_role("button", name="Save").click()
+    company_page.page.get_by_role("button", name="Save").click()
     
     logger.info("Step 3.11 [Duplicate]: Auto-waiting for duplicate validation toast...")
-    toast_text = capture_toast(page)
+    toast_text = company_page.capture_toast()
     
-    url_after = page.url
+    url_after = company_page.page.url
     logger.info(f"Page state after duplicate quick lead submit: URL='{url_after}'")
     
     logger.info("Step 3.12 [Duplicate]: Cleaning up quick lead modal state...")
-    if "quick-lead" in url_after:
-        try:
-            page.get_by_role("button", name="Back").click()
-        except Exception:
-            base_part = url_after.split("/quick-lead")[0]
-            logger.info(f"Bypassing Back button and loading: {base_part}/company")
-            page.goto(f"{base_part}/company")
-        page.wait_for_timeout(2000)
+    company_page.navigate_to_company_list_if_needed()
         
     logger.info("Step 3.13 [Duplicate]: Asserting duplicate lead warning/toast is present...")
     assert "duplicate" in toast_text.lower() or "already exists" in toast_text.lower(), \
@@ -425,28 +357,23 @@ def test_add_quick_lead_flow(company_page):
 # ---------------------------------------------------------------------------
 @pytest.mark.login_as("PreSales2@mailinator.com")
 def test_create_company_with_asterisks_flow(company_page):
-    page = company_page.page
-    
     logger.info("--- STARTING FLOW 4: ADD NEW COMPANY WITH ASTERISKS ---")
     
     logger.info("Step 4.1: Clicking '+ Add New Company' to open form...")
     company_page.click_add_new_company()
-    page.wait_for_timeout(1000)
+    company_page.page.wait_for_timeout(1000)
     
     logger.info("Step 4.2: Generating localized company details for fallback fields...")
     loc_data = get_localized_data("+1")
     
     logger.info("Step 4.3: Filling Name field with invalid '*****' input...")
-    page.locator("input[name='companyName']").fill("*****")
+    company_page.fill_company_name("*****")
     
     logger.info("Step 4.4: Filling Email field with standard unique email...")
-    page.locator("input[name='companyEmail']").fill(loc_data["email"])
+    company_page.fill_company_email(loc_data["email"])
     
     logger.info("Step 4.5: Filling Phone field with standard numeric phone...")
-    try:
-        page.locator("input[name='companyPhone']").fill(loc_data["phone"])
-    except Exception:
-        pass
+    company_page.fill_company_phone(loc_data["phone"])
         
     logger.info("Step 4.6: Selecting country code '+1'...")
     company_page.select_country_code("+1")
@@ -455,20 +382,16 @@ def test_create_company_with_asterisks_flow(company_page):
     company_page.select_service("UI/UX Design")
     
     logger.info("Step 4.8: Clicking Save to attempt submission...")
-    page.get_by_role("button", name="Save").click()
+    company_page.page.get_by_role("button", name="Save").click()
     
     logger.info("Step 4.9: Auto-waiting for validation toast notifications...")
-    toast_text = capture_toast(page, timeout=3000)
+    toast_text = company_page.capture_toast(timeout=3000)
     
-    url_after = page.url
+    url_after = company_page.page.url
     logger.info(f"Page state after asterisk company submit: URL='{url_after}'")
     
     logger.info("Step 4.10: Cleaning up form page to prevent test pollution...")
-    if "add-new-company-form" in url_after:
-        base_part = url_after.split("/add-new-company-form")[0]
-        logger.info(f"Bypassing and redirecting back to: {base_part}/company")
-        page.goto(f"{base_part}/company")
-        page.wait_for_timeout(2000)
+    company_page.navigate_to_company_list_if_needed()
         
     logger.info("Step 4.11: Asserting form submission was blocked (URL still contains 'add-new-company-form')...")
     assert "add-new-company-form" in url_after, \
@@ -481,18 +404,14 @@ def test_create_company_with_asterisks_flow(company_page):
 # ---------------------------------------------------------------------------
 @pytest.mark.login_as("PreSales2@mailinator.com")
 def test_add_quick_lead_asterisks_flow(company_page):
-    page = company_page.page
-    
     logger.info("--- STARTING FLOW 5: ADD QUICK LEAD WITH ASTERISKS ---")
     
     logger.info("Step 5.1: Clicking 'Add Quick Lead' dropdown item...")
     company_page.click_add_quick_lead()
-    page.wait_for_timeout(1000)
+    company_page.page.wait_for_timeout(1000)
     
     logger.info("Step 5.2: Simulating physical keyboard entry of invalid asterisks ('*****') into Name field...")
-    name_input = page.get_by_role("textbox", name="Name")
-    name_input.click()
-    page.keyboard.type("*****")
+    company_page.type_quick_lead_name_keyboard("*****")
     
     logger.info("Step 5.3: Filling out the remaining Quick Lead fields (Email, Phone, Country)...")
     company_page.fill_quick_lead_form(
@@ -504,23 +423,16 @@ def test_add_quick_lead_asterisks_flow(company_page):
     )
     
     logger.info("Step 5.4: Clicking Save to attempt submission...")
-    page.get_by_role("button", name="Save").click()
+    company_page.page.get_by_role("button", name="Save").click()
     
     logger.info("Step 5.5: Auto-waiting for validation toast notifications...")
-    toast_text = capture_toast(page, timeout=3000)
+    toast_text = company_page.capture_toast(timeout=3000)
     
-    url_after = page.url
+    url_after = company_page.page.url
     logger.info(f"Page state after asterisk quick lead submit: URL='{url_after}'")
     
     logger.info("Step 5.6: Cleaning up quick lead modal state...")
-    if "quick-lead" in url_after:
-        try:
-            page.get_by_role("button", name="Back").click()
-        except Exception:
-            base_part = url_after.split("/quick-lead")[0]
-            logger.info(f"Bypassing Back button and loading: {base_part}/company")
-            page.goto(f"{base_part}/company")
-        page.wait_for_timeout(2000)
+    company_page.navigate_to_company_list_if_needed()
         
     logger.info("Step 5.7: Asserting quick lead submission was blocked.")
     assert "quick-lead" in url_after, \
@@ -613,11 +525,11 @@ def test_add_new_company_and_poc(new_company):
 
 @pytest.mark.login_as("shreya@tekinspirations.com")
 @pytest.mark.parametrize("skip_field, fill_fn", [
-    ("company_name",  lambda page, cp: (page.locator("input[name='companyEmail']").fill(fake.company_email()), cp.select_country_code("+91"), cp.select_service("UI/UX Design"))),
-    ("company_email", lambda page, cp: (page.locator("input[name='companyName']").fill(fake.company()), cp.select_country_code("+91"), cp.select_service("UI/UX Design"))),
-    ("phone_number",  lambda page, cp: (page.locator("input[name='companyName']").fill(fake.company()), page.locator("input[name='companyEmail']").fill(fake.company_email()), cp.select_service("UI/UX Design"))),
-    ("country",       lambda page, cp: (page.locator("input[name='companyName']").fill(fake.company()), page.locator("input[name='companyEmail']").fill(fake.company_email()), cp.select_service("UI/UX Design"))),
-    ("service",       lambda page, cp: (page.locator("input[name='companyName']").fill(fake.company()), page.locator("input[name='companyEmail']").fill(fake.company_email()), cp.select_country_code("+91"))),
+    ("company_name",  lambda cp: (cp.fill_company_email(fake.company_email()), cp.select_country_code("+91"), cp.select_service("UI/UX Design"))),
+    ("company_email", lambda cp: (cp.fill_company_name(fake.company()), cp.select_country_code("+91"), cp.select_service("UI/UX Design"))),
+    ("phone_number",  lambda cp: (cp.fill_company_name(fake.company()), cp.fill_company_email(fake.company_email()), cp.select_service("UI/UX Design"))),
+    ("country",       lambda cp: (cp.fill_company_name(fake.company()), cp.fill_company_email(fake.company_email()), cp.select_service("UI/UX Design"))),
+    ("service",       lambda cp: (cp.fill_company_name(fake.company()), cp.fill_company_email(fake.company_email()), cp.select_country_code("+91"))),
 ])
 def test_mandatory_fields_block_submission(logged_in_page, skip_field, fill_fn):
     logger.info(f"--- STARTING: TEST MANDATORY FIELDS BLOCK SUBMISSION (Skipping: {skip_field}) ---")
@@ -627,12 +539,12 @@ def test_mandatory_fields_block_submission(logged_in_page, skip_field, fill_fn):
     cp.click_add_new_company()
     
     logger.info("Step 2: Filling in fields except the skipped field...")
-    fill_fn(logged_in_page, cp)
+    fill_fn(cp)
     
     logger.info("Step 3: Clicking Save and verifying submission is blocked...")
-    logged_in_page.get_by_role("button", name="Save").click()
-    logged_in_page.wait_for_timeout(500)
-    url_after = logged_in_page.url.lower()
+    cp.page.get_by_role("button", name="Save").click()
+    cp.page.wait_for_timeout(500)
+    url_after = cp.page.url.lower()
     assert "company" in url_after, \
         f"Form should block submission when '{skip_field}' is missing"
     logger.info("Blocked successfully!")
@@ -649,17 +561,17 @@ def test_optional_fields_do_not_block_submission(logged_in_page):
     
     logger.info("Step 2: Generating and filling only mandatory fields...")
     data = get_localized_data("+91")
-    page.locator("input[name='companyName']").fill(data["company_name"])
-    page.locator("input[name='companyEmail']").fill(data["email"])
+    cp.fill_company_name(data["company_name"])
+    cp.fill_company_email(data["email"])
     cp.select_country_code("+91")
     cp.select_service("UI/UX Design")
     
     logger.info("Step 3: Submitting and asserting no validation error on optional fields...")
-    page.get_by_role("button", name="Save").click()
-    page.wait_for_timeout(1000)
+    cp.page.get_by_role("button", name="Save").click()
+    cp.page.wait_for_timeout(1000)
     optional_names = ["websiteUrl", "linkedinUrl", "taxIdentificationNumber",
                       "companySize", "monthlyMarketingBudget", "postalZipCode", "existingAgency"]
-    for err in page.locator("[aria-invalid='true']").all():
+    for err in cp.page.locator("[aria-invalid='true']").all():
         name = err.get_attribute("name")
         assert name not in optional_names, f"Optional field '{name}' is showing a validation error"
     logger.info("Verification complete!")
@@ -722,16 +634,8 @@ def test_edit_company_as_admin(company_page):
     assert prefilled_email == original_email, "Company Email should match original during edit"
     
     logger.info("Step 4: Clearing mandatory fields and verifying form blocks submission...")
-    name_field.click()
-    company_page.page.wait_for_timeout(300)
-    name_field.select_text()
-    company_page.page.keyboard.press("Backspace")
-    
-    email_field.click()
-    company_page.page.wait_for_timeout(300)
-    email_field.select_text()
-    email_field.press_sequentially("", delay=30) # clear email
-    company_page.page.keyboard.press("Backspace")
+    company_page.clear_company_name()
+    company_page.clear_company_email()
     
     company_page.page.get_by_role("button", name="Update").click()
     company_page.page.wait_for_timeout(1000)
@@ -790,16 +694,8 @@ def test_edit_company_as_presales(company_page):
     assert prefilled_email == original_email, "Company Email should match original during edit"
     
     logger.info("Step 4: Clearing mandatory fields and verifying form blocks submission...")
-    name_field.click()
-    company_page.page.wait_for_timeout(300)
-    name_field.select_text()
-    company_page.page.keyboard.press("Backspace")
-    
-    email_field.click()
-    company_page.page.wait_for_timeout(300)
-    email_field.select_text()
-    email_field.press_sequentially("", delay=30) # clear email
-    company_page.page.keyboard.press("Backspace")
+    company_page.clear_company_name()
+    company_page.clear_company_email()
     
     company_page.page.get_by_role("button", name="Update").click()
     company_page.page.wait_for_timeout(1000)
@@ -862,10 +758,7 @@ def test_add_company_duplicate_name_blocks_submission(company_page):
     url_after = company_page.page.url
     
     logger.info("Step 3: Cleaning up and asserting duplicate submission is blocked...")
-    if "add-new-company-form" in url_after:
-        base_part = url_after.split("/add-new-company-form")[0]
-        company_page.page.goto(f"{base_part}/company")
-        company_page.page.wait_for_timeout(2000)
+    company_page.navigate_to_company_list_if_needed()
         
     assert "add-new-company-form" in url_after, \
         "Adding a company with duplicate name should block submission"
@@ -915,10 +808,7 @@ def test_edit_company_duplicate_name_blocks_submission(company_page):
     url_after = company_page.page.url
     
     logger.info("Step 4: Cleaning up and asserting duplicate edit is blocked...")
-    if "add-new-company-form" in url_after:
-        base_part = url_after.split("/add-new-company-form")[0]
-        company_page.page.goto(f"{base_part}/company")
-        company_page.page.wait_for_timeout(2000)
+    company_page.navigate_to_company_list_if_needed()
         
     assert "add-new-company-form" in url_after, \
         "Editing a company to a duplicate name should block submission"
@@ -933,12 +823,9 @@ def test_create_company_with_asterisks_blocks_submission(company_page):
     company_page.page.wait_for_timeout(1000)
     
     logger.info("Step 2: Filling required fields with '*****'...")
-    company_page.page.locator("input[name='companyName']").fill("*****")
-    company_page.page.locator("input[name='companyEmail']").fill("*****")
-    try:
-        company_page.page.locator("input[name='companyPhone']").fill("*****")
-    except Exception:
-        pass
+    company_page.fill_company_name("*****")
+    company_page.fill_company_email("*****")
+    company_page.fill_company_phone("*****")
         
     company_page.select_country_code("+91")
     company_page.select_service("UI/UX Design")
@@ -948,10 +835,7 @@ def test_create_company_with_asterisks_blocks_submission(company_page):
     company_page.page.wait_for_timeout(2000)
     url_after = company_page.page.url
     
-    if "add-new-company-form" in url_after:
-        base_part = url_after.split("/add-new-company-form")[0]
-        company_page.page.goto(f"{base_part}/company")
-        company_page.page.wait_for_timeout(2000)
+    company_page.navigate_to_company_list_if_needed()
         
     assert "add-new-company-form" in url_after, \
         "Creating a company with asterisks in required fields should block submission"
