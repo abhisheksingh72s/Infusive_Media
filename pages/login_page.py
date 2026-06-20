@@ -33,7 +33,7 @@ class LoginPage:
         return self.page.get_by_role("button", name="Hide password").is_visible()
 
     def wait_for_dashboard(self):
-        self.page.wait_for_url(lambda url: "/login" not in url, timeout=15000)
+        self.page.wait_for_url("**/dashboard", timeout=15000)
 
     def login(self, email, password, remember_me=None):
         self.enter_email(email)
