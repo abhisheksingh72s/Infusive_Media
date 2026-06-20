@@ -299,3 +299,33 @@ class CompanyPage:
         self.page.wait_for_timeout(300)
         field.select_text()
         self.page.keyboard.press("Backspace")
+
+    def update_company_email(self, email):
+        field = self.page.get_by_role("textbox", name="Company Email")
+        field.click()
+        self.page.wait_for_timeout(300)
+        field.select_text()
+        field.press_sequentially(email, delay=30)
+
+    def get_company_name_value(self):
+        return self.page.get_by_role("textbox", name="Company Name").input_value()
+
+    def get_company_email_value(self):
+        return self.page.get_by_role("textbox", name="Company Email").input_value()
+
+    def get_element_dimensions(self, locator):
+        if isinstance(locator, str):
+            locator = self.page.locator(locator)
+        locator.first.wait_for(state="attached", timeout=5000)
+        box = locator.first.bounding_box()
+        if not box:
+            return {"width": 0, "height": 0, "x": 0, "y": 0}
+        return box
+
+    def get_element_css_property(self, locator, property_name):
+        if isinstance(locator, str):
+            locator = self.page.locator(locator)
+        locator.first.wait_for(state="attached", timeout=5000)
+        return locator.first.evaluate(
+            "(el, prop) => window.getComputedStyle(el).getPropertyValue(prop)", property_name
+        )
