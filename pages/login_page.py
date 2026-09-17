@@ -56,3 +56,15 @@ class LoginPage:
         self.page.reload()
         self.page.wait_for_url("**/login", timeout=15000)
         self.page.get_by_role("textbox", name="Email").wait_for(state="visible", timeout=10000)
+
+    def is_login_rejected(self) -> bool:
+        """Verify login attempt is rejected via error toast or message while remaining on login page."""
+        self.page.wait_for_timeout(1000)
+        if "/login" not in self.page.url:
+            return False
+        toasts = self.page.locator(".chakra-toast, [role='status'], [role='alert'], .toast, div[class*='toast']").all_inner_texts()
+        if any(t.strip() for t in toasts):
+            return True
+        body_text = self.page.locator("body").inner_text().lower()
+        return any(msg in body_text for msg in ["incorrect", "inactive", "failed", "invalid", "disabled", "error"])
+
