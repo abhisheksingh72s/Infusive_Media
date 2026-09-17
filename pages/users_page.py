@@ -1,4 +1,8 @@
+import re
+
+
 class UsersPage:
+
 
     def __init__(self, page):
         self.page = page
@@ -182,3 +186,73 @@ class UsersPage:
                 unique_users.append(u)
 
         return unique_users
+
+    def is_users_table_visible(self) -> bool:
+        """Verify that the Users table is displayed."""
+        try:
+            table = self.page.locator("table").first
+            table.wait_for(state="visible", timeout=10000)
+            return table.is_visible()
+        except Exception:
+            return False
+
+    def get_user_row(self, user_identifier: str):
+        """Locate the table row corresponding to user email or name."""
+        self.page.locator("table tbody tr").first.wait_for(state="visible", timeout=15000)
+        pattern = re.compile(re.escape(user_identifier), re.IGNORECASE)
+        row = self.page.locator("tbody tr", has_text=pattern).first
+        if row.count() > 0:
+            return row
+
+        # Search box matches by User Name (local part of email or name)
+        search_term = user_identifier.split("@")[0] if "@" in user_identifier else user_identifier
+        self.search_user(search_term)
+        self.page.wait_for_timeout(1000)
+        pattern_term = re.compile(re.escape(search_term), re.IGNORECASE)
+        row = self.page.locator("tbody tr", has_text=pattern_term).first
+        if row.count() > 0:
+            return row
+
+        # Clear search input and paginate if not found
+        search_input = self.page.locator("input[placeholder*='Search']").first
+        search_input.fill("")
+        self.page.wait_for_timeout(1000)
+
+        for _ in range(20):
+            rows = self.page.locator("tbody tr").all()
+            for r in rows:
+                if pattern.search(r.inner_text()):
+                    return r
+            next_btn = self.page.get_by_role("button", name="Next").or_(
+                self.page.locator("button:has-text('Next')")
+            ).first
+            if next_btn.count() == 0 or not next_btn.is_enabled():
+                break
+            next_btn.click()
+            self.page.wait_for_timeout(1000)
+
+        raise ValueError(f"User row for '{user_identifier}' not found in Users table.")
+
+
+
+    def get_user_status(self, user_identifier: str) -> str:
+        """Get the current toggle status text ('Yes' for Active, 'No' for Absent/Inactive)."""
+        row = self.get_user_row(user_identifier)
+        toggle_btn = row.locator("button.sc-eVqvcJ, button:has(.toggle-text), button[title*='toggle']").first
+        return toggle_btn.inner_text().strip()
+
+    def toggle_user_status(self, user_identifier: str) -> str:
+        """Click the user's status toggle button and return the new status text."""
+        row = self.get_user_row(user_identifier)
+        toggle_btn = row.locator("button.sc-eVqvcJ, button:has(.toggle-text), button[title*='toggle']").first
+        toggle_btn.click()
+        self.page.wait_for_timeout(1000)
+        return toggle_btn.inner_text().strip()
+
+    def set_user_status(self, user_identifier: str, active: bool) -> None:
+        """Ensure user's status is set to active (True/Yes) or inactive (False/No)."""
+        target_status = "Yes" if active else "No"
+        current_status = self.get_user_status(user_identifier)
+        if target_status.lower() not in current_status.lower():
+            self.toggle_user_status(user_identifier)
+
