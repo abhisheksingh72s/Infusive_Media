@@ -1,0 +1,78 @@
+name: Auto PR and Pytest Execution (xdist)
+
+on:
+  push:
+    branches-ignore:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-pull-request:
+    name: Automatically Create Pull Request
+    if: github.event_name == 'push' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Create PR if Not Exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH_NAME="${{ github.ref_name }}"
+          echo "Checking for existing PR for branch: $BRANCH_NAME"
+          EXISTS=$(gh pr list --head "$BRANCH_NAME" --base main --json number --jq 'length')
+          if [ "$EXISTS" -eq "0" ]; then
+            echo "Creating Pull Request from $BRANCH_NAME to main..."
+            gh pr create \
+              --base main \
+              --head "$BRANCH_NAME" \
+              --title "Automated PR: $BRANCH_NAME" \
+              --body "This PR was automatically created upon pushing code to branch \`$BRANCH_NAME\`."
+          else
+            echo "Pull Request already exists for branch $BRANCH_NAME."
+          fi
+
+  run-tests:
+    name: Run Pytest Test Cases (xdist)
+    needs: [create-pull-request]
+    if: always() && (needs.create-pull-request.result == 'success' || needs.create-pull-request.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment: .env
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Playwright Browsers with System Dependencies
+        run: |
+          npx playwright install --with-deps chromium
+
+      - name: Generate .env File from GitHub Environment Secret
+        run: |
+          echo "${{ secrets.ENV }}" > .env
+          echo "Generated .env file successfully."
+
+      - name: Execute Pytest with xdist (1 Module Per Worker)
+        run: |
+          xvfb-run pytest -n auto --dist loadfile --html=reports/report.html --self-contained-html

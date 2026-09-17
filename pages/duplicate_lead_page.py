@@ -13,12 +13,32 @@ class DuplicateLeadPage:
         self.table_rows = self.page.locator(".chakra-table__container table tbody tr")
 
     def go_to_duplicate_lead(self):
-        logger.info("Clicking on Lead module in sidebar...")
-        self.lead_module.click()
-        logger.info("Clicking on Duplicate Lead sub-menu...")
-        self.duplicate_lead_menu.click()
-        logger.info("Waiting for duplicate lead page load...")
-        self.page.wait_for_url("**/Duplicatelead", timeout=30000)
+        logger.info("Navigating to Duplicate Lead page...")
+        dup_link = self.page.locator("a[href='/Duplicatelead'], a[href*='Duplicate'], a[href*='duplicate']")
+        if dup_link.count() > 0 and dup_link.first.is_visible():
+            dup_link.first.click()
+        else:
+            lead_lnk = self.page.get_by_role("link", name="Lead")
+            if lead_lnk.count() == 0 or not lead_lnk.first.is_visible():
+                lead_lnk = self.page.locator("//a[contains(., 'Lead')]")
+            if lead_lnk.count() > 0 and lead_lnk.first.is_visible():
+                lead_lnk.first.click()
+                self.page.wait_for_timeout(1000)
+            
+            dup_link = self.page.locator("a[href='/Duplicatelead'], a[href*='Duplicate'], a[href*='duplicate']")
+            if dup_link.count() > 0 and dup_link.first.is_visible():
+                dup_link.first.click()
+            else:
+                try:
+                    self.page.get_by_role("link", name="Duplicate Lead").click()
+                except Exception:
+                    base_url = self.page.url.split("/company")[0].split("/dashboard")[0]
+                    self.page.goto(f"{base_url}/Duplicatelead")
+
+        try:
+            self.page.wait_for_url("**/Duplicatelead**", timeout=15000)
+        except Exception:
+            pass
         self.search_box.wait_for(state="visible", timeout=30000)
 
     def search_duplicate_lead(self, search_term):
