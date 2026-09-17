@@ -27,6 +27,7 @@ def test_search_page(pages_page):
     )
 
 
+
 def test_search_no_results(pages_page):
     pages_page.search("xyznonexistent123")
     assert pages_page.has_no_results(), "Search should return no results for a non-existent keyword"

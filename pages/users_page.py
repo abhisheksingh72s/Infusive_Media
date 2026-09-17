@@ -100,3 +100,85 @@ class UsersPage:
 
     def get_validation_message(self, field_name):
         raise NotImplementedError("Pending Locator Confirmation")
+
+    def get_user_email_by_name(self, user_name: str) -> str:
+        """
+        Search for user by Name, locate matching row, and extract Email ID.
+        Raises ValueError if user is not found or ambiguous.
+        """
+        self.page.locator("table, tbody tr").first.wait_for(state="visible", timeout=15000)
+        self.search_user(user_name)
+        self.page.wait_for_timeout(1500)
+
+        rows = self.page.locator("tbody tr").all()
+        matching = []
+
+        for row in rows:
+            cells = [c.inner_text().strip() for c in row.locator("td").all()]
+            if len(cells) >= 3:
+                full_name = cells[1]
+                email = cells[2]
+                if user_name.lower() == full_name.lower() or user_name.lower() in full_name.lower():
+                    matching.append((full_name, email))
+
+        if len(matching) == 0:
+            raise ValueError(f"User '{user_name}' not found in Users table.")
+
+        exact = [email for name, email in matching if name.lower() == user_name.lower()]
+        if len(exact) == 1:
+            return exact[0]
+
+        if len(matching) == 1:
+            return matching[0][1]
+
+        raise ValueError(f"Ambiguous user search for '{user_name}': found {len(matching)} matches: {matching}")
+
+    def get_all_users(self) -> list:
+        """
+        Iterate through all rows in the Users table (handling pagination if present).
+        Extracts [{'name': full_name, 'email': email, 'role': role}, ...] for every user.
+        Raises ValueError if Users table is empty.
+        """
+        table = self.page.locator("table").first
+        table.wait_for(state="visible", timeout=15000)
+        self.page.locator("tbody tr").first.wait_for(state="visible", timeout=15000)
+
+        all_users = []
+        max_pages = 50
+
+        for _ in range(max_pages):
+            rows = self.page.locator("tbody tr").all()
+            for row in rows:
+                cells = [c.inner_text().strip() for c in row.locator("td").all()]
+                if len(cells) >= 6:
+                    name = cells[1]
+                    email = cells[2]
+                    role = cells[5]
+                    if name and email:
+                        all_users.append({
+                            "name": name,
+                            "email": email,
+                            "role": role
+                        })
+
+            next_btn = self.page.get_by_role("button", name="Next").or_(
+                self.page.locator("button:has-text('Next')")
+            ).first
+            if next_btn.count() == 0 or not next_btn.is_enabled():
+                break
+
+            next_btn.click()
+            self.page.wait_for_timeout(1000)
+            self.page.locator("tbody tr").first.wait_for(state="visible")
+
+        if not all_users:
+            raise ValueError("Users table is empty; no user records found.")
+
+        unique_users = []
+        seen_emails = set()
+        for u in all_users:
+            if u["email"] not in seen_emails:
+                seen_emails.add(u["email"])
+                unique_users.append(u)
+
+        return unique_users

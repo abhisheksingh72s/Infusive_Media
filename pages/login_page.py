@@ -41,3 +41,18 @@ class LoginPage:
         if remember_me:
             self.click_remember_me()
         self.click_login()
+
+    def logout(self):
+        try:
+            self.page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
+            self.page.context.clear_cookies()
+        except Exception:
+            pass
+        base = self.url if self.url else "https://infusive-front.jobvritta.com/login"
+        if not base.endswith("/login"):
+            base = base.rstrip("/") + "/login"
+        self.page.goto(base, wait_until="domcontentloaded")
+        self.page.wait_for_url("**/login", timeout=15000)
+        self.page.reload()
+        self.page.wait_for_url("**/login", timeout=15000)
+        self.page.get_by_role("textbox", name="Email").wait_for(state="visible", timeout=10000)
