@@ -68,7 +68,7 @@ jobs:
 
       - name: Install Playwright Chromium & System Dependencies
         run: |
-          npx playwright install --with-deps chromium
+          playwright install --with-deps chromium
 
       - name: Generate .env File from GitHub Secrets
         run: |
