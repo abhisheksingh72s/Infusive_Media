@@ -5,7 +5,7 @@ class LoginPage:
 
     def __init__(self, page):
         self.page = page
-        self.url = os.getenv("BASE_URL")
+        self.url = os.getenv("BASE_URL") or "https://infusive-front.jobvritta.com/login"
 
     def load(self):
         self.page.set_default_navigation_timeout(60000)

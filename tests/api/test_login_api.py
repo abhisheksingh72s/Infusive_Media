@@ -15,6 +15,7 @@ VALID_PASSWORD = os.getenv("PASSWORD")
 # Happy Path
 # ---------------------------------------------------------------------------
 
+@pytest.mark.smoke
 def test_login_valid_credentials():
     """Valid admin credentials must return a non-empty token."""
     token = base_api.get_token(user="admin")
