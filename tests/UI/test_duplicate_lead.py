@@ -28,7 +28,6 @@ def duplicate_lead_page(logged_in_page):
     dlp = DuplicateLeadPage(logged_in_page)
     return dlp
 
-@pytest.mark.smoke
 @pytest.mark.login_as("PreSales2@mailinator.com")
 def test_duplicate_lead_verification_flow(company_page, duplicate_lead_page):
     logger.info("--- STARTING: DUPLICATE LEAD VERIFICATION FLOW ---")

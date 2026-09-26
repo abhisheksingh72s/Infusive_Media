@@ -27,7 +27,6 @@ def lead_poc_page(logged_in_page):
     return lp
 
 
-@pytest.mark.smoke
 @pytest.mark.login_as("PreSales2@mailinator.com")
 def test_presales_create_company_and_poc_verify_in_lead_poc(company_page, lead_poc_page):
     """

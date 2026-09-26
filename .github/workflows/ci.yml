@@ -1,14 +1,8 @@
-name: PR First Flow: Create PR -> Run Smoke Tests -> Auto-Merge to Main
+name: Smoke Gatekeeper & Auto PR Merge Pipeline
 
 on:
   push:
-    branches-ignore:
-      - main
-      - master
   pull_request:
-    branches:
-      - main
-      - master
   workflow_dispatch:
 
 permissions:
@@ -17,11 +11,11 @@ permissions:
 
 jobs:
   # ===========================================================================
-  # STEP 1: CREATE PULL REQUEST (Immediately upon Branch Push)
+  # STEP 1: CREATE PULL REQUEST (For Feature Branches)
   # ===========================================================================
   create-pull-request:
     name: "Step 1: Automatically Create Pull Request to Main"
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref_name != 'main' && github.ref_name != 'master'
     runs-on: ubuntu-latest
 
     steps:
@@ -42,17 +36,16 @@ jobs:
               --base main \
               --head "$BRANCH_NAME" \
               --title "Automated PR: $BRANCH_NAME" \
-              --body "Automated PR created for branch \`$BRANCH_NAME\`. Smoke tests will execute as PR status checks."
+              --body "Automated PR created for branch \`$BRANCH_NAME\`. Smoke tests (Login & Dashboard Matrix) will execute as PR status checks."
           else
             echo "Pull Request already exists for branch $BRANCH_NAME."
           fi
 
   # ===========================================================================
-  # STEP 2: RUN SMOKE TEST SUITE ON THE PULL REQUEST
-  # (Executes as GitHub PR Status Check)
+  # STEP 2: RUN SMOKE TEST SUITE (Login & Dashboard API/UI Matrix)
   # ===========================================================================
   smoke-testing:
-    name: "Step 2: Execute Smoke Tests on PR (Login, Lead Gen, Add Company, POC)"
+    name: "Step 2: Execute Smoke Tests (Login & Dashboard Validation)"
     needs: [create-pull-request]
     if: always() && (needs.create-pull-request.result == 'success' || needs.create-pull-request.result == 'skipped')
     runs-on: ubuntu-latest
@@ -82,7 +75,7 @@ jobs:
           echo "${{ secrets.ENV }}" > .env
           echo "Generated .env file successfully."
 
-      - name: Execute Smoke Test Suite
+      - name: Execute Smoke Test Suite (-m smoke)
         run: |
           xvfb-run pytest -m smoke -v --html=reports/smoke_report.html --self-contained-html
 
@@ -99,11 +92,12 @@ jobs:
 
   # ===========================================================================
   # STEP 3: AUTOMATICALLY MERGE PR TO MAIN
-  # (Executes ONLY IF Step 2 Smoke Testing PASSED)
+  # (Executes ONLY IF Step 2 Smoke Testing PASSED and is Feature Branch)
   # ===========================================================================
   auto-merge-pr:
     name: "Step 3: Auto-Merge PR into Main (Only if Smoke Tests Pass)"
     needs: [smoke-testing]
+    if: github.ref_name != 'main' && github.ref_name != 'master'
     runs-on: ubuntu-latest
 
     steps:

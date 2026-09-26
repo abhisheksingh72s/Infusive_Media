@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.mark.ui
+@pytest.mark.smoke
 def test_full_dashboard_cards_charts_tables_api_validation(logged_in_page):
     """
     Comprehensive End-to-End Test Case:
