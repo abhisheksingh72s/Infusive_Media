@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 
 from pages.login_page import LoginPage
 
-EMAIL = os.getenv("EMAIL")
-PASSWORD = os.getenv("PASSWORD")
+EMAIL = os.getenv("EMAIL") or "Admin@infusive.com"
+PASSWORD = os.getenv("PASSWORD") or "123456"
 REPORTS_ROOT = Path("reports")
 MODULE_REPORT_DIRS = ("screenshot", "traceview", "videos", "downloads")
 
@@ -123,11 +123,20 @@ def _credential_records():
 
 def _credentials_for_email(email):
     if not email:
-        email = EMAIL
+        email = EMAIL or "Admin@infusive.com"
 
     for record in _credential_records():
         if record["email"].casefold() == email.casefold():
             return record
+
+    # Fallback to Admin default credentials if requested
+    admin_email = EMAIL or "Admin@infusive.com"
+    if email.casefold() == admin_email.casefold():
+        return {
+            "email": email,
+            "password": PASSWORD or "123456",
+            "source": "DEFAULT_FALLBACK",
+        }
 
     known_emails = ", ".join(record["email"] for record in _credential_records())
     pytest.fail(

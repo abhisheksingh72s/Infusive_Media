@@ -49,7 +49,6 @@ jobs:
     needs: [create-pull-request]
     if: always() && (needs.create-pull-request.result == 'success' || needs.create-pull-request.result == 'skipped')
     runs-on: ubuntu-latest
-    environment: .env
 
     steps:
       - name: Checkout Repository Code
@@ -71,9 +70,36 @@ jobs:
           playwright install --with-deps chromium
 
       - name: Generate .env File from GitHub Secrets
+        env:
+          ENV_SECRET: ${{ secrets.ENV }}
+          SECRET_EMAIL: ${{ secrets.EMAIL }}
+          SECRET_PASSWORD: ${{ secrets.PASSWORD }}
+          SECRET_BASE_URL: ${{ secrets.BASE_URL }}
         run: |
-          echo "${{ secrets.ENV }}" > .env
-          echo "Generated .env file successfully."
+          if [ -n "$ENV_SECRET" ]; then
+            printf "%s\n" "$ENV_SECRET" > .env
+            echo "Successfully generated .env from secrets.ENV."
+          elif [ -n "$SECRET_EMAIL" ] && [ -n "$SECRET_PASSWORD" ]; then
+            echo "Generating .env from individual secrets (EMAIL, PASSWORD)..."
+            cat << EOF > .env
+          BASE_URL=${SECRET_BASE_URL:-https://infusive-front.jobvritta.com/login}
+          BASE_API_URL=https://infusive-back.jobvritta.com/api/
+          BASE_API_URL_STG=https://infusive-back.jobvritta.com/api/
+          BASE_API_URL_PROD=https://crmapi.infusivemedia.com/api/
+          EMAIL=$SECRET_EMAIL
+          PASSWORD=$SECRET_PASSWORD
+          EOF
+          else
+            echo "No custom secrets detected. Using default STAGE environment configuration..."
+            cat << 'EOF' > .env
+          BASE_URL=https://infusive-front.jobvritta.com/login
+          BASE_API_URL=https://infusive-back.jobvritta.com/api/
+          BASE_API_URL_STG=https://infusive-back.jobvritta.com/api/
+          BASE_API_URL_PROD=https://crmapi.infusivemedia.com/api/
+          EMAIL=Admin@infusive.com
+          PASSWORD=123456
+          EOF
+          fi
 
       - name: Execute Smoke Test Suite (-m smoke)
         run: |
