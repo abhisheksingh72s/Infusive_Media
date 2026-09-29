@@ -89,7 +89,7 @@ def get_token(user: str = "admin", base_url: str = None) -> str:
         }
         logger.info(f"Attempting API login for '{user}' to: {login_url}")
         response = requests.post(login_url, json=payload)
-        logger.info(f"API Login Response [{response.status_code}]: {response.text}")
+        logger.info(f"API Login Response [{response.status_code}]: Login successful")
         if response.status_code != 200:
             logger.error(f"API Login failed for '{user}': {response.status_code} - {response.text}")
             response.raise_for_status()

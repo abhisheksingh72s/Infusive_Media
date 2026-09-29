@@ -57,7 +57,7 @@ def test_lead_assignment_report_dom_vs_api_validation(logged_in_page):
     qa.log_step(3, total_steps, "Validating 15 Table Column Headers (Expected vs DOM)...", "PASS")
     LeadAssignmentValidator.validate_headers(dom_headers)
     qa.log_step(3, total_steps, "All 15 Table Headers validated successfully with Hard Assertions!", "PASS")
-
+ 
     # ---------------------------------------------------------------------------
     # Step 4: Strict 130 Cell-by-Cell Hard Assertions (10 Users x 13 Metrics)
     # ---------------------------------------------------------------------------
