@@ -110,31 +110,32 @@ def test_create_task_and_verify_email_trigger(logged_in_page):
       5. Verify that 'Task Created' event triggers email delivery to qa.tekinspirations@gmail.com.
     """
     import time
-    from pages.task_page import TaskPage
+    from pages.project_page import ProjectPage
 
     task_title = f"AutoNotif_Task_{int(time.time())}"
     logger.info("--- Starting End-to-End Test: Create Task to Trigger Notification Event ---")
     logger.info("Generated unique Task Title: '%s'", task_title)
 
-    task_page = TaskPage(logged_in_page)
+    project_page = ProjectPage(logged_in_page)
     # Step 1: Navigate to /projects
-    task_page.go_to_projects()
+    project_page.go_to_project()
 
     # Step 2: Click on Project Name
-    task_page.click_project_name()
+    project_page.click_project_hyperlink()
 
     # Step 3: Phase 1 - Resource Allocation (ensure employee is allocated to project)
-    task_page.ensure_resource_allocation()
+    project_page.open_resource_allocation_tab()
+    project_page.allocate_resource_dynamic()
 
     # Step 4: Phase 2 - Open Task Management
-    task_page.open_task_management_tab()
+    project_page.open_task_management_tab()
 
     # Step 5: Click Add Task
-    task_page.click_add_task()
+    project_page.click_add_task()
 
     # Step 6: Fill and submit Task form
-    task_page.fill_and_submit_task(task_title=task_title)
-    toast = task_page.capture_toast()
+    project_page.create_task_dynamic(task_name=task_title)
+    toast = project_page.capture_toast()
     if toast:
         logger.info("Captured Task Creation feedback: '%s'", toast)
 

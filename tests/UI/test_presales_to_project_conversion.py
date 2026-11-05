@@ -302,25 +302,28 @@ def test_presales_to_project_conversion_flow(page):
     qa_logger.log_step(5, 6, "Lead Status Updated to Won & Persisted", status="PASS", details={"Updated Status": updated_status})
 
     # -------------------------------------------------------------------------
-    # STEP 6: Switch to Project Module -> Edit Project Validations & Save
+    # STEP 6: Phase 4 Project Setup: Project Details, Resource Allocation & Task
     # -------------------------------------------------------------------------
-    qa_logger.log_step(6, 6, "Switch to Project -> Edit & Verify Validations", status="IN_PROGRESS")
+    qa_logger.log_step(6, 6, "Phase 4 Project Setup (Details, Allocation, Task)", status="IN_PROGRESS")
     page.reload()
-    project_page.go_to_project()
-    project_page.search_project(company_name)
 
-    # Click project hyperlink
-    project_page.click_project_hyperlink(company_name)
-
-    # Click Edit Project icon
-    project_page.click_edit_project_icon()
-
-    # Trigger and verify field validations
-    validation_res = project_page.verify_and_trigger_field_validations(qa_logger=qa_logger)
-
-    # Save project and verify persistence after refresh
-    project_page.save_project()
+    phase4_result = project_page.execute_phase_4_complete_setup(
+        company_name=company_name,
+        run_negative_checks=True,
+        qa_logger=qa_logger,
+    )
     project_page.verify_project_persistence(company_name)
+    qa_logger.log_step(
+        6,
+        6,
+        "Phase 4 Project Setup Completed",
+        status="PASS",
+        details={
+            "Company": company_name,
+            "Task Created": phase4_result.get("task_name", ""),
+            "Employee": phase4_result.get("allocation", {}).get("employee", ""),
+        },
+    )
 
     duration = time.time() - start_time
     qa_logger.print_footer(status="PASSED", total_steps=6, passed=6, failed=0, duration_sec=duration)
