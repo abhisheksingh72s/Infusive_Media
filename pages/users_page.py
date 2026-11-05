@@ -1,4 +1,8 @@
+import re
+
+
 class UsersPage:
+
 
     def __init__(self, page):
         self.page = page
@@ -100,3 +104,155 @@ class UsersPage:
 
     def get_validation_message(self, field_name):
         raise NotImplementedError("Pending Locator Confirmation")
+
+    def get_user_email_by_name(self, user_name: str) -> str:
+        """
+        Search for user by Name, locate matching row, and extract Email ID.
+        Raises ValueError if user is not found or ambiguous.
+        """
+        self.page.locator("table, tbody tr").first.wait_for(state="visible", timeout=15000)
+        self.search_user(user_name)
+        self.page.wait_for_timeout(1500)
+
+        rows = self.page.locator("tbody tr").all()
+        matching = []
+
+        for row in rows:
+            cells = [c.inner_text().strip() for c in row.locator("td").all()]
+            if len(cells) >= 3:
+                full_name = cells[1]
+                email = cells[2]
+                if user_name.lower() == full_name.lower() or user_name.lower() in full_name.lower():
+                    matching.append((full_name, email))
+
+        if len(matching) == 0:
+            raise ValueError(f"User '{user_name}' not found in Users table.")
+
+        exact = [email for name, email in matching if name.lower() == user_name.lower()]
+        if len(exact) == 1:
+            return exact[0]
+
+        if len(matching) == 1:
+            return matching[0][1]
+
+        raise ValueError(f"Ambiguous user search for '{user_name}': found {len(matching)} matches: {matching}")
+
+    def get_all_users(self) -> list:
+        """
+        Iterate through all rows in the Users table (handling pagination if present).
+        Extracts [{'name': full_name, 'email': email, 'role': role}, ...] for every user.
+        Raises ValueError if Users table is empty.
+        """
+        table = self.page.locator("table").first
+        table.wait_for(state="visible", timeout=15000)
+        self.page.locator("tbody tr").first.wait_for(state="visible", timeout=15000)
+
+        all_users = []
+        max_pages = 50
+
+        for _ in range(max_pages):
+            rows = self.page.locator("tbody tr").all()
+            for row in rows:
+                cells = [c.inner_text().strip() for c in row.locator("td").all()]
+                if len(cells) >= 6:
+                    name = cells[1]
+                    email = cells[2]
+                    role = cells[5]
+                    if name and email:
+                        all_users.append({
+                            "name": name,
+                            "email": email,
+                            "role": role
+                        })
+
+            next_btn = self.page.get_by_role("button", name="Next").or_(
+                self.page.locator("button:has-text('Next')")
+            ).first
+            if next_btn.count() == 0 or not next_btn.is_enabled():
+                break
+
+            next_btn.click()
+            self.page.wait_for_timeout(1000)
+            self.page.locator("tbody tr").first.wait_for(state="visible")
+
+        if not all_users:
+            raise ValueError("Users table is empty; no user records found.")
+
+        unique_users = []
+        seen_emails = set()
+        for u in all_users:
+            if u["email"] not in seen_emails:
+                seen_emails.add(u["email"])
+                unique_users.append(u)
+
+        return unique_users
+
+    def is_users_table_visible(self) -> bool:
+        """Verify that the Users table is displayed."""
+        try:
+            table = self.page.locator("table").first
+            table.wait_for(state="visible", timeout=10000)
+            return table.is_visible()
+        except Exception:
+            return False
+
+    def get_user_row(self, user_identifier: str):
+        """Locate the table row corresponding to user email or name."""
+        self.page.locator("table tbody tr").first.wait_for(state="visible", timeout=15000)
+        pattern = re.compile(re.escape(user_identifier), re.IGNORECASE)
+        row = self.page.locator("tbody tr", has_text=pattern).first
+        if row.count() > 0:
+            return row
+
+        # Search box matches by User Name (local part of email or name)
+        search_term = user_identifier.split("@")[0] if "@" in user_identifier else user_identifier
+        self.search_user(search_term)
+        self.page.wait_for_timeout(1000)
+        pattern_term = re.compile(re.escape(search_term), re.IGNORECASE)
+        row = self.page.locator("tbody tr", has_text=pattern_term).first
+        if row.count() > 0:
+            return row
+
+        # Clear search input and paginate if not found
+        search_input = self.page.locator("input[placeholder*='Search']").first
+        search_input.fill("")
+        self.page.wait_for_timeout(1000)
+
+        for _ in range(20):
+            rows = self.page.locator("tbody tr").all()
+            for r in rows:
+                if pattern.search(r.inner_text()):
+                    return r
+            next_btn = self.page.get_by_role("button", name="Next").or_(
+                self.page.locator("button:has-text('Next')")
+            ).first
+            if next_btn.count() == 0 or not next_btn.is_enabled():
+                break
+            next_btn.click()
+            self.page.wait_for_timeout(1000)
+
+        raise ValueError(f"User row for '{user_identifier}' not found in Users table.")
+
+
+
+    def get_user_status(self, user_identifier: str) -> str:
+        """Get the current toggle status text ('Yes' for Active, 'No' for Absent/Inactive)."""
+        row = self.get_user_row(user_identifier)
+        toggle_btn = row.locator("button.sc-eVqvcJ, button:has(.toggle-text), button[title*='toggle']").first
+        return toggle_btn.inner_text().strip()
+
+    def toggle_user_status(self, user_identifier: str) -> str:
+        """Click the user's status toggle button and return the new status text."""
+        row = self.get_user_row(user_identifier)
+        toggle_btn = row.locator("button.sc-eVqvcJ, button:has(.toggle-text), button[title*='toggle']").first
+        toggle_btn.click()
+        self.page.wait_for_timeout(1000)
+        return toggle_btn.inner_text().strip()
+
+    def set_user_status(self, user_identifier: str, active: bool) -> None:
+        """Ensure user's status is set to active (True/Yes) or inactive (False/No)."""
+        target_status = "Yes" if active else "No"
+        current_status = self.get_user_status(user_identifier)
+        if target_status.lower() not in current_status.lower():
+            self.toggle_user_status(user_identifier)
+

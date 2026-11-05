@@ -1,0 +1,54 @@
+[
+  {
+    "element_name": "Short Signature Editor",
+    "tag": "div",
+    "locator": {
+      "id": "",
+      "name": "",
+      "css": "label:has-text('Short Signature') + div .jodit-wysiwyg[contenteditable='true']",
+      "xpath": "//label[normalize-space()='Short Signature']/following::div[contains(@class,'jodit-wysiwyg') and @contenteditable='true'][1]",
+      "playwright": "page.locator(\"//label[normalize-space()='Short Signature']/following::div[contains(@class,'jodit-wysiwyg') and @contenteditable='true'][1]\")"
+    },
+    "is_visible": true,
+    "is_enabled": true
+  },
+  {
+    "element_name": "Full Signature Editor",
+    "tag": "div",
+    "locator": {
+      "id": "",
+      "name": "",
+      "css": "label:has-text('Full Signature') + div .jodit-wysiwyg[contenteditable='true']",
+      "xpath": "//label[normalize-space()='Full Signature']/following::div[contains(@class,'jodit-wysiwyg') and @contenteditable='true'][1]",
+      "playwright": "page.locator(\"//label[normalize-space()='Full Signature']/following::div[contains(@class,'jodit-wysiwyg') and @contenteditable='true'][1]\")"
+    },
+    "is_visible": true,
+    "is_enabled": true
+  },
+  {
+    "element_name": "Save Signature Button",
+    "tag": "button",
+    "locator": {
+      "id": "",
+      "name": "",
+      "css": "button.btn_theme",
+      "xpath": "//button[normalize-space()='Save Signature']",
+      "playwright": "page.get_by_role(\"button\", name=\"Save Signature\")"
+    },
+    "is_visible": true,
+    "is_enabled": true
+  },
+  {
+    "element_name": "Success Toast",
+    "tag": "div",
+    "locator": {
+      "id": "",
+      "name": "",
+      "css": "[role='status']",
+      "xpath": "//*[@role='status']",
+      "playwright": "page.locator(\"//*[@role='status']\")"
+    },
+    "is_visible": true,
+    "is_enabled": true
+  }
+]

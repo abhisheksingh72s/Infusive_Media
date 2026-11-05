@@ -1,0 +1,171 @@
+{
+  "body_text": "Dashboard\nCompanies\nLeads\nProjects\nReport\nSignature\nAdmin Controller\nMasters\nSettings\n\nAdmin\n\nDashboard\n\nWelcome back, Admin 👋\n\nTOTAL LEADS\n\n9\n\nAll time\n\nASSIGNED\n\n3\n\nAll time\n\nCONTACTED\n\n0\n\nAll time\n\nWON\n\n2\n\nAll time\n\nLOST\n\n0\n\nAll time\n\nDUPLICATE LEADS\n\n0\n\nAll time\n\nDUPLICATE CONVERTED\n\n0\n\nAll time\n\nLead Trends\n\n2026-27\n\nJan\nFeb\nMar\nApr\nMay\nJun\nJul\nAug\nSep\nOct\nNov\nDec\n0\n3\n6\n9\n12\n\nToday's Activities\n\n📅\n\nToday's Meetings\n\nNo meetings scheduled for today\n\n📞\n\nToday's Reminders\n\nNo follow-ups scheduled for today\n\nLead Generation Report\n\nSep 2026\n\nAdmin\nAshish Sharma-Agra\nPreSales1\nPreSales2\nPreSales3\nRitesh Singh\nRitesh Singh\nTeamLead1\nTeamLead2\nTej\n0\n2\n4\n6\n8\n\nWeekly Breakdown\n\nLEAD GENERATOR\tWEEK OF AUG 31\tWEEK OF SEP 7\tWEEK OF SEP 14\tWEEK OF SEP 21\tWEEK OF SEP 28\tTOTAL\tAVG / WEEK\nAdmin\t\n\n0\n\n\t\n\n0\n\n\t\n\n5\n\n\t\n\n1\n\n\t\n\n0\n\n\t6\t1.2\nAshish Sharma-Agra\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t0\t0\nPreSales1\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t0\t0\nPreSales2\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t0\t0\nPreSales3\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t0\t0\nRitesh Singh\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t0\t0\nRitesh Singh\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t0\t0\nTeamLead1\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t0\t0\nTeamLead2\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t0\t0\nTej\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t\n\n0\n\n\t0\t0\nLogged in Successfully\n2",
+  "cards": [],
+  "tables": [
+    {
+      "table_index": 1,
+      "headers": [
+        "LEAD GENERATOR",
+        "WEEK OF AUG 31",
+        "WEEK OF SEP 7",
+        "WEEK OF SEP 14",
+        "WEEK OF SEP 21",
+        "WEEK OF SEP 28",
+        "TOTAL",
+        "AVG / WEEK"
+      ],
+      "rows": [
+        [
+          "Admin",
+          "0",
+          "0",
+          "5",
+          "1",
+          "0",
+          "6",
+          "1.2"
+        ],
+        [
+          "Ashish Sharma-Agra",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        [
+          "PreSales1",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        [
+          "PreSales2",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        [
+          "PreSales3",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        [
+          "Ritesh Singh",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        [
+          "Ritesh Singh",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        [
+          "TeamLead1",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        [
+          "TeamLead2",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        [
+          "Tej",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ]
+      ]
+    }
+  ],
+  "charts": [
+    {
+      "chart_index": 1,
+      "x_axis_ticks": [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec"
+      ],
+      "y_axis_ticks": [
+        "0",
+        "3",
+        "6",
+        "9",
+        "12"
+      ],
+      "bar_count": 12
+    },
+    {
+      "chart_index": 2,
+      "x_axis_ticks": [
+        "Admin",
+        "Ashish Sharma-Agra",
+        "PreSales1",
+        "PreSales2",
+        "PreSales3",
+        "Ritesh Singh",
+        "Ritesh Singh",
+        "TeamLead1",
+        "TeamLead2",
+        "Tej"
+      ],
+      "y_axis_ticks": [
+        "0",
+        "2",
+        "4",
+        "6",
+        "8"
+      ],
+      "bar_count": 10
+    }
+  ]
+}

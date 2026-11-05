@@ -1,11 +1,14 @@
+import os
 import time
 import random
 import pytest
 from faker import Faker
 
 from pages.users_page import UsersPage
+from pages.login_page import LoginPage
 
 fake = Faker("en_IN")
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -171,3 +174,56 @@ def test_create_user_invalid_mobile_length(users_page):
     users_page.select_role("Team Lead")
     users_page.click_submit()
     assert False, "Pending Locator Confirmation"
+
+
+@pytest.mark.parametrize(
+    "user_email, user_password",
+    [
+        (os.getenv("USER_01_EMAIL", "presales3@mailinator.com"), os.getenv("USER_01_PASSWORD", "123456")),
+        (os.getenv("USER_03_EMAIL", "teamlead1@mailinator.com"), os.getenv("USER_03_PASSWORD", "123456")),
+        (os.getenv("USER_06_EMAIL", "bdm3@mailinator.com"), os.getenv("USER_06_PASSWORD", "123456")),
+    ],
+)
+def test_inactive_user_cannot_login(users_page, page, user_email, user_password):
+    """
+    Verify inactive user cannot login across multiple different non-admin users.
+    Steps:
+    1. Login via Admin credentials (handled by users_page fixture).
+    2. Open Admin Controller module -> Users sub-module (handled by users_page fixture).
+    3. Verify Users table is displayed.
+    4. Select user from the Users table.
+    5. Toggle selected user's status from Active (Yes) to Absent/Inactive (No).
+    6. Logout from Admin account.
+    7. Try to login using the inactive user's credentials.
+    8. Verify login is rejected.
+    9. Restore user's status back to Active (Yes).
+    """
+    admin_email = os.getenv("EMAIL", "Admin@infusive.com")
+    admin_password = os.getenv("PASSWORD", "123456")
+
+    login_page = LoginPage(page)
+
+    assert users_page.is_users_table_visible(), "Users table is not visible."
+
+    try:
+        # Toggle user status to Inactive (No)
+        users_page.set_user_status(user_email, active=False)
+        assert "No" in users_page.get_user_status(user_email), f"User status for '{user_email}' was not set to Inactive."
+
+        # Logout from Admin
+        login_page.logout()
+
+        # Try to login with inactive user
+        login_page.login(user_email, user_password)
+
+        # Verify login is rejected
+        assert login_page.is_login_rejected(), f"Login was not rejected for inactive user '{user_email}'."
+    finally:
+        # Cleanup: Re-login as Admin and restore user status back to Active (Yes)
+        login_page.logout()
+        login_page.login(admin_email, admin_password)
+        login_page.wait_for_dashboard()
+        users_page.go_to_users()
+        users_page.set_user_status(user_email, active=True)
+
+

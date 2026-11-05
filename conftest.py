@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 
 from pages.login_page import LoginPage
 
-EMAIL = os.getenv("EMAIL")
-PASSWORD = os.getenv("PASSWORD")
+EMAIL = os.getenv("EMAIL") or "Admin@infusive.com"
+PASSWORD = os.getenv("PASSWORD") or "123456"
 REPORTS_ROOT = Path("reports")
 MODULE_REPORT_DIRS = ("screenshot", "traceview", "videos", "downloads")
 
@@ -60,8 +60,29 @@ def _test_artifact_name(item, extension):
     return f"{_safe_name(item.nodeid)}.{extension}"
 
 
+def pytest_addoption(parser):
+    """Add custom CLI options for test execution."""
+    parser.addoption(
+        "--env",
+        action="store",
+        default="stg",
+        help="Target API Environment: stg (default) or prod"
+    )
+
+
+@pytest.fixture(scope="session")
+def target_env(request) -> str:
+    """
+    Session fixture providing target environment.
+    Defaults to 'stg' unless explicitly specified via CLI --env=prod.
+    """
+    val = request.config.getoption("--env", default="stg")
+    return (val or "stg").lower()
+
+
 def pytest_configure(config):
     REPORTS_ROOT.mkdir(exist_ok=True)
+
 
 
 def pytest_collection_modifyitems(items):
@@ -102,11 +123,20 @@ def _credential_records():
 
 def _credentials_for_email(email):
     if not email:
-        email = EMAIL
+        email = EMAIL or "Admin@infusive.com"
 
     for record in _credential_records():
         if record["email"].casefold() == email.casefold():
             return record
+
+    # Fallback to Admin default credentials if requested
+    admin_email = EMAIL or "Admin@infusive.com"
+    if email.casefold() == admin_email.casefold():
+        return {
+            "email": email,
+            "password": PASSWORD or "123456",
+            "source": "DEFAULT_FALLBACK",
+        }
 
     known_emails = ", ".join(record["email"] for record in _credential_records())
     pytest.fail(
@@ -129,30 +159,33 @@ def _login_email_from_request(request):
 
 
 @pytest.fixture(scope="function", autouse=True)
-def set_default_timeout(page):
-    page.set_default_timeout(30000)
-    page.set_default_navigation_timeout(30000)
-
+def set_default_timeout(request):
+    if "page" in request.fixturenames:
+        page = request.getfixturevalue("page")
+        page.set_default_timeout(30000)
+        page.set_default_navigation_timeout(30000)
 
 
 @pytest.fixture(scope="function", autouse=True)
-def monitor_api_failures(page):
-    """Monitor and print any API failures (HTTP status >= 400) during UI tests."""
+def monitor_api_failures(request):
+    """Monitor and log any API failures (HTTP status >= 400) to framework.log."""
+    if "page" not in request.fixturenames:
+        yield
+        return
+    page = request.getfixturevalue("page")
+    file_logger = logging.getLogger("FrameworkFileLogger")
     def handle_response(response):
         if "/api/" in response.url.lower():
             if response.status >= 400:
-                logger.warning(
+                file_logger.warning(
                     "API Error detected: %s %s returned HTTP %s",
                     response.request.method,
                     response.url,
                     response.status
                 )
-                print(
-                    f"\n[API ERROR TRIGGERED] Method: {response.request.method} | "
-                    f"URL: {response.url} | Status: {response.status}"
-                )
     page.on("response", handle_response)
     yield
+
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -206,3 +239,16 @@ def logged_in_page(page, request):
     lp.login(credentials["email"], credentials["password"])
     lp.wait_for_dashboard()
     return page
+
+
+@pytest.fixture(scope="function")
+def api_context(playwright):
+    """
+    Reusable Playwright APIRequestContext fixture.
+    Logs in via API and caches session token as long as session is valid.
+    """
+    from utilities.api import base_api
+    context = base_api.create_playwright_api_context(playwright, user="admin")
+    yield context
+    context.dispose()
+

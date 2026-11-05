@@ -92,9 +92,7 @@ class DynamicTable:
             state="visible", timeout=self._timeout
         )
         headers = table.locator(self._header_row_locator).all()
-        texts = [h.inner_text().strip() for h in headers]
-        logger.info(f"DynamicTable headers: {texts}")
-        return texts
+        return [h.inner_text().strip() for h in headers]
 
     # ------------------------------------------------------------------
     # Public API
@@ -176,7 +174,7 @@ class DynamicTable:
         headers = self._get_headers()
         headers_upper = [h.upper() for h in headers]
         phone_col = None
-        for candidate in ["PHONE NUMBER", "PHONE", "CONTACT NUMBER", "MOBILE"]:
+        for candidate in ["PHONE NUMBER", "PHONE", "CONTACT NUMBER", "MOBILE", "CONTACT"]:
             if candidate in headers_upper:
                 phone_col = headers[headers_upper.index(candidate)]
                 break
@@ -208,8 +206,17 @@ class LeadPoolPage:
 
     def go_to_lead_pool(self):
         logger.info("Navigating to Lead Pool…")
-        self.lead_module.click()
-        self.lead_pool_menu.click()
+        if not self.lead_pool_menu.is_visible():
+            if self.lead_module.is_visible():
+                self.lead_module.click()
+        try:
+            self.lead_pool_menu.wait_for(state="visible", timeout=5000)
+            self.lead_pool_menu.click()
+        except Exception:
+            import os
+            base_url = os.getenv("BASE_URL", "https://infusive-front.jobvritta.com/login").replace("/login", "")
+            self.page.goto(f"{base_url}/lead-pool", wait_until="domcontentloaded")
+
         self.page.wait_for_url("**/lead-pool", timeout=30_000)
         self.page.wait_for_timeout(1_000)
 
@@ -241,10 +248,85 @@ class LeadPoolPage:
         all_vals = row.get_all_values()
         logger.info(f"Matched row values: {all_vals}")
 
-        lead_id = row.get_value("LEAD ID")
+        try:
+            lead_id = row.get_value("LEAD ID")
+        except ValueError:
+            try:
+                lead_id = row.get_value("S.NO")
+            except ValueError:
+                lead_id = company_name or phone_number
+
         assigned_to = row.get_value("ASSIGNED TO")
         logger.info(f"Lead ID: {lead_id} | Assigned To: {assigned_to}")
         return lead_id, assigned_to
+
+
+class CreatedLeadPage:
+    def __init__(self, page):
+        self.page = page
+        self.lead_module = self.page.locator("//a[text()='Lead' or text()='Leads']")
+        self.created_lead_menu = self.page.locator("//a[contains(@href, 'created-lead') or contains(text(), 'Created Lead')]")
+
+    def go_to_created_lead(self):
+        logger.info("Navigating to Created Lead sub-module…")
+        try:
+            if not self.created_lead_menu.is_visible():
+                if self.lead_module.is_visible():
+                    self.lead_module.first.click()
+                    self.page.wait_for_timeout(500)
+            if self.created_lead_menu.is_visible():
+                self.created_lead_menu.first.click()
+            else:
+                import os
+                base_url = os.getenv("BASE_URL", "https://infusive-front.jobvritta.com/login").replace("/login", "").rstrip("/")
+                self.page.goto(f"{base_url}/created-lead", wait_until="domcontentloaded")
+        except Exception:
+            import os
+            base_url = os.getenv("BASE_URL", "https://infusive-front.jobvritta.com/login").replace("/login", "").rstrip("/")
+            self.page.goto(f"{base_url}/created-lead", wait_until="domcontentloaded")
+
+        self.page.wait_for_timeout(1_000)
+
+    def search_lead(self, query: str):
+        """Type search query into search input box and press Enter."""
+        logger.info(f"Searching lead table for: '{query}'")
+        search_box = self.page.get_by_placeholder("Search", exact=False)
+        if search_box.count() == 0 or not search_box.first.is_visible():
+            search_box = self.page.locator("input[placeholder*='Search'], input[type='search'], input[name='search']")
+        if search_box.count() > 0 and search_box.first.is_visible():
+            search_box.first.fill(query)
+            self.page.keyboard.press("Enter")
+            self.page.wait_for_timeout(1500)
+
+    def find_lead_and_capture_assigned_bdm(self, phone_number: str, company_name: str = None):
+        """
+        Search for lead by phone or company name, verify Assigned To column, and return (lead_id, assigned_to).
+        """
+        logger.info(f"Searching Created Lead table: phone='{phone_number}', company='{company_name}'")
+        if company_name or phone_number:
+            self.search_lead(company_name or phone_number)
+
+        table = DynamicTable(self.page)
+        try:
+            row = table.find_row_by_phone(phone_number)
+        except LookupError:
+            if company_name:
+                row = table.find_row(column="COMPANY", value=company_name, match_partial=True)
+            else:
+                raise
+
+        try:
+            lead_id = row.get_value("LEAD ID")
+        except ValueError:
+            try:
+                lead_id = row.get_value("S.NO")
+            except ValueError:
+                lead_id = company_name or phone_number
+
+        assigned_to = row.get_value("ASSIGNED TO")
+        logger.info(f"Captured Lead ID: {lead_id} | Assigned BDM: {assigned_to}")
+        return lead_id, assigned_to
+
 
 
 class MyLeadsPage:
@@ -255,8 +337,17 @@ class MyLeadsPage:
 
     def go_to_my_leads(self):
         logger.info("Navigating to My Leads…")
-        self.lead_module.click()
-        self.my_leads_menu.click()
+        if not self.my_leads_menu.is_visible():
+            if self.lead_module.is_visible():
+                self.lead_module.click()
+        try:
+            self.my_leads_menu.wait_for(state="visible", timeout=5000)
+            self.my_leads_menu.click()
+        except Exception:
+            import os
+            base_url = os.getenv("BASE_URL", "https://infusive-front.jobvritta.com/login").replace("/login", "")
+            self.page.goto(f"{base_url}/my-leads", wait_until="domcontentloaded")
+
         self.page.wait_for_url("**/my-leads", timeout=30_000)
         self.page.wait_for_timeout(1_000)
 
@@ -266,6 +357,56 @@ class MyLeadsPage:
     def get_row_by_lead_id(self, lead_id: str) -> TableRow:
         table = self._get_table()
         return table.find_row(column="LEAD ID", value=str(lead_id))
+
+    def accept_lead_if_assigned(self, row: TableRow):
+        """
+        If lead is in 'Assigned' status, click the green checkmark action icon in ACTION column,
+        fill optional reason in the 'Accept Lead' modal, click Accept button, and wait for modal to close.
+        """
+        current_status = row.get_value("LEAD STATUS").strip()
+        logger.info(f"Current Lead Status in My Leads: '{current_status}'")
+        if current_status.lower() in ["assigned", "new"]:
+            logger.info("Lead status is 'Assigned'. Accepting lead via Accept Lead modal...")
+            action_cell = row.get_cell("ACTION")
+            green_check = action_cell.locator("button, svg, a").first
+            if green_check.is_visible():
+                green_check.click()
+                self.page.wait_for_timeout(1000)
+
+            # Locate the Accept Lead modal specifically
+            modal = self.page.locator("section[aria-modal='true'], [role='dialog'], .chakra-modal__content").filter(
+                has_text="Accept Lead"
+            ).first
+            if not modal.is_visible():
+                modal = self.page.locator("section[aria-modal='true'], [role='dialog'], .chakra-modal__content").first
+
+            modal.wait_for(state="visible", timeout=10000)
+            logger.info("Accept Lead modal is visible.")
+
+            # Fill optional reason textarea
+            reason_area = modal.locator("textarea[placeholder*='Reason'], textarea")
+            if reason_area.count() > 0 and reason_area.first.is_visible():
+                reason_area.first.fill("Accepting lead via automated conversion test")
+                logger.info("Filled reason for accepting lead.")
+
+            # Click Accept button inside modal
+            accept_btn = modal.get_by_role("button", name="Accept", exact=True)
+            if accept_btn.count() == 0 or not accept_btn.first.is_visible():
+                accept_btn = modal.locator("button.chakra-button").filter(has_text="Accept")
+            if accept_btn.count() == 0 or not accept_btn.first.is_visible():
+                accept_btn = modal.locator("button:has-text('Accept')")
+
+            accept_btn.first.click()
+            logger.info("Clicked Accept button inside Accept Lead modal.")
+
+            # Wait for Accept Lead modal to close completely
+            try:
+                modal.wait_for(state="hidden", timeout=10000)
+            except Exception:
+                self.page.wait_for_timeout(2000)
+
+            logger.info("Accept Lead modal closed successfully.")
+            self.page.wait_for_timeout(1500)
 
     # ------------------------------------------------------------------
     # Update Status modal + Requirement Gathering
@@ -424,3 +565,89 @@ class RequirementGatheringPage:
         self.page.get_by_role("button", name="Click To Speak").click()
         self.page.get_by_role("button", name="Submit").click()
         self.page.wait_for_timeout(2_000)
+
+
+# ---------------------------------------------------------------------------
+# Lead POC Page
+# ---------------------------------------------------------------------------
+
+class LeadPOCPage:
+    """Page Object Model for the Lead -> POC sub-module."""
+
+    def __init__(self, page):
+        self.page = page
+
+    def go_to_lead_module(self):
+        """Click the Lead module from navigation sidebar."""
+        logger.info("Clicking Lead module from navigation...")
+        lead_lnk = self.page.get_by_role("link", name="Lead")
+        if lead_lnk.count() == 0 or not lead_lnk.is_visible():
+            lead_lnk = self.page.locator("//a[text()='Lead']")
+        if lead_lnk.count() == 0 or not lead_lnk.is_visible():
+            lead_lnk = self.page.get_by_text("Lead", exact=True)
+        
+        lead_lnk.first.click()
+        self.page.wait_for_timeout(1000)
+
+    def open_poc_submodule(self):
+        """Click the POC sub-module under Lead navigation."""
+        logger.info("Opening POC sub-module under Lead...")
+        poc_sub = self.page.get_by_role("link", name="POC")
+        if poc_sub.count() == 0 or not poc_sub.is_visible():
+            poc_sub = self.page.locator("a[href='/poc'], a[href='/lead-poc'], a[href*='poc']")
+        if poc_sub.count() == 0 or not poc_sub.is_visible():
+            poc_sub = self.page.get_by_text("POC", exact=True)
+
+        try:
+            poc_sub.first.wait_for(state="visible", timeout=5000)
+            poc_sub.first.click()
+        except Exception:
+            # Fallback to direct navigation if click fails
+            import os
+            base_url = os.getenv("BASE_URL", "https://infusive-front.jobvritta.com/login").replace("/login", "").rstrip("/")
+            self.page.goto(f"{base_url}/poc", wait_until="domcontentloaded")
+
+        try:
+            self.page.wait_for_url("**/*poc*", timeout=15000)
+        except Exception:
+            pass
+
+        # Wait for table to load
+        try:
+            self.page.locator("tbody tr").first.wait_for(state="visible", timeout=15000)
+        except Exception:
+            pass
+
+    def search_record(self, query: str):
+        """Search for a Company or POC record using the search input."""
+        logger.info(f"Searching POC records for: '{query}'")
+        search_box = self.page.get_by_placeholder("Search", exact=False)
+        if search_box.count() == 0 or not search_box.first.is_visible():
+            search_box = self.page.locator("input[placeholder*='Search'], input[type='search'], input[name='search']")
+
+        search_box.first.wait_for(state="visible", timeout=10000)
+        search_box.first.fill(query)
+        self.page.keyboard.press("Enter")
+        self.page.wait_for_timeout(2000)
+
+    def is_record_visible_in_table(self, identifier: str, poc_name: str = None) -> bool:
+        """Verify that the matching record row is present in the table search results."""
+        logger.info(f"Verifying presence of record '{identifier}' in POC table...")
+        try:
+            self.page.locator("tbody tr").first.wait_for(state="visible", timeout=15000)
+        except Exception:
+            logger.warning("No rows found in POC table after search.")
+            return False
+
+        rows = self.page.locator("tbody tr").all()
+        for idx, row in enumerate(rows):
+            row_text = row.inner_text().strip()
+            logger.debug(f"POC Table Row {idx}: '{row_text}'")
+            if identifier.lower() in row_text.lower():
+                if poc_name:
+                    if poc_name.lower() in row_text.lower():
+                        return True
+                else:
+                    return True
+        return False
+

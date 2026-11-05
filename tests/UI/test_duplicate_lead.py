@@ -111,10 +111,13 @@ def test_duplicate_company_poc_verification_flow(company_page, duplicate_lead_pa
         name=company_name,
         email=email,
         phone=phone,
-        website=website
+        website=website,
+        poc_name=poc_name,
+        country_code="+1",
+        service="UI/UX Design",
+        lead_source="website",
+        note="Duplicate company test note 1"
     )
-    company_page.select_country_code("+1")
-    company_page.select_service("UI/UX Design")
     company_page.click_stepper_next()
     
     company_page.fill_stepper_poc_form(
@@ -140,10 +143,13 @@ def test_duplicate_company_poc_verification_flow(company_page, duplicate_lead_pa
         name=company_name,
         email=email,
         phone=phone,
-        website=website
+        website=website,
+        poc_name=poc_name,
+        country_code="+1",
+        service="UI/UX Design",
+        lead_source="website",
+        note="Duplicate company test note 2"
     )
-    company_page.select_country_code("+1")
-    company_page.select_service("UI/UX Design")
     
     # Click Next (on the stepper, this triggers the save attempt on the backend)
     company_page.page.get_by_role("button", name="Next").click()
