@@ -18,9 +18,17 @@ import webbrowser
 from typing import Optional, Dict, Any, List
 
 import requests
-from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import Request
-from googleapiclient.discovery import build
+
+try:
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request
+    from googleapiclient.discovery import build
+    GOOGLE_AUTH_AVAILABLE = True
+except ImportError:
+    Credentials = None  # type: ignore[assignment, misc]
+    Request = None  # type: ignore[assignment, misc]
+    build = None  # type: ignore[assignment, misc]
+    GOOGLE_AUTH_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -92,10 +100,15 @@ class GmailClient:
         self.client_secret_path = client_secret_path or _find_client_secret_file()
         self.service = None
 
-    def authenticate(self, port: int = 8088) -> Credentials:
+    def authenticate(self, port: int = 8088) -> Any:
         """
         Loads existing token.json or runs 1-time OAuth authorization flow via browser.
         """
+        if not GOOGLE_AUTH_AVAILABLE:
+            raise RuntimeError(
+                "Google API client libraries are not installed. "
+                "Please install them via: pip install google-api-python-client google-auth google-auth-oauthlib"
+            )
         creds = None
         if os.path.exists(self.token_path):
             try:
