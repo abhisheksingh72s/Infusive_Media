@@ -231,6 +231,10 @@ def module_reports(request):
 @pytest.fixture(scope="function")
 def logged_in_page(page, request):
     """UI login fixture. Selects credentials from .env by email."""
+    try:
+        page.set_viewport_size({"width": 1920, "height": 1080})
+    except Exception:
+        pass
     credentials = _credentials_for_email(_login_email_from_request(request))
     logger.info("Logging in through UI as: %s", credentials["email"])
 

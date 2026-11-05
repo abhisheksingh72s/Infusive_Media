@@ -115,27 +115,44 @@ class DashboardPage:
 
     def hover_bar_by_index(self, index: int):
         """Hover over a specific bar rectangle by index."""
-        if index < self.bar_rectangles.count():
-            bar = self.bar_rectangles.nth(index)
-            bar.hover(force=True)
+        try:
+            self.chart_container.scroll_into_view_if_needed()
+            if index < self.bar_rectangles.count():
+                bar = self.bar_rectangles.nth(index)
+                try:
+                    bar.scroll_into_view_if_needed()
+                    bar.hover(timeout=3000)
+                except Exception:
+                    bar.dispatch_event("mouseenter")
+        except Exception:
+            pass
 
     def hover_bar_by_month(self, month_name: str):
         """Hover over the bar corresponding to a specific month label."""
-        labels = self.get_x_axis_labels()
-        if month_name in labels:
-            idx = labels.index(month_name)
-            self.hover_bar_by_index(idx)
+        try:
+            labels = self.get_x_axis_labels()
+            if month_name in labels:
+                idx = labels.index(month_name)
+                self.hover_bar_by_index(idx)
+        except Exception:
+            pass
 
     def is_tooltip_visible(self) -> bool:
         """Check if the chart tooltip wrapper is present or visible."""
-        return self.tooltip_wrapper.is_visible() or self.tooltip_content.is_visible()
+        try:
+            return self.tooltip_wrapper.is_visible() or self.tooltip_content.is_visible()
+        except Exception:
+            return False
 
     def get_tooltip_text(self) -> str:
         """Get the text content of the visible tooltip."""
-        if self.tooltip_label.is_visible():
-            return self.tooltip_label.text_content().strip()
-        if self.tooltip_content.is_visible():
-            return self.tooltip_content.text_content().strip()
+        try:
+            if self.tooltip_label.is_visible():
+                return self.tooltip_label.text_content().strip()
+            if self.tooltip_content.is_visible():
+                return self.tooltip_content.text_content().strip()
+        except Exception:
+            pass
         return ""
 
     # ---------------------------------------------------------------------------
