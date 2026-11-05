@@ -35,12 +35,18 @@ class CompanyPage:
     def select_quick_lead_country_code(self, code):
         self.page.wait_for_timeout(500)
         search_term = code.replace("+", "")
-        self.page.get_by_role("button", name="Select Code").click()
-        search_input = self.page.get_by_role("textbox", name="Phone Number *")
-        search_input.wait_for(state="visible")
+        btn = self.page.get_by_role("button", name="Select Code")
+        if btn.count() > 0 and btn.first.is_visible():
+            btn.first.click()
+        search_input = self.page.get_by_placeholder("Search country or code").last
+        if search_input.count() == 0 or not search_input.is_visible():
+            search_input = self.page.locator("input[placeholder*='Search'], input[placeholder*='code']").last
+        search_input.wait_for(state="visible", timeout=5000)
         search_input.fill(search_term)
         menu_item = self.page.get_by_role("menuitem").filter(has_text=f"(+{search_term})")
-        menu_item.first.wait_for(state="visible")
+        if menu_item.count() == 0 or not menu_item.first.is_visible():
+            menu_item = self.page.locator("[role='menuitem'], [class*='option']").filter(has_text=search_term)
+        menu_item.first.wait_for(state="visible", timeout=5000)
         menu_item.first.click()
 
     def fill_quick_lead_form(self, name, email, phone, country, country_code=None):

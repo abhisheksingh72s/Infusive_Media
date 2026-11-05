@@ -157,8 +157,8 @@ def test_presales_to_project_conversion_flow(page):
     # -------------------------------------------------------------------------
     # STEP 1: Pre Sales Login
     # -------------------------------------------------------------------------
-    presales_email = os.getenv("USER_08_EMAIL", "PreSales2@mailinator.com")
-    presales_pass = os.getenv("USER_08_PASSWORD", "123456")
+    presales_email = os.getenv("USER_11_EMAIL", "PreSales2@mailinator.com")
+    presales_pass = os.getenv("USER_11_PASSWORD", "123456")
     qa_logger.log_step(1, 6, "Login as Pre Sales Role", status="PASS", details={"Email": presales_email})
     
     login_page.load()
