@@ -37,7 +37,11 @@ class DashboardPage:
             else:
                 base_url = self.page.url.split("/admin")[0] if "/admin" in self.page.url else self.page.url
                 self.page.goto(f"{base_url.rstrip('/')}/dashboard")
-        self.page.wait_for_load_state("networkidle")
+        try:
+            self.page.wait_for_load_state("domcontentloaded")
+            self.chart_container.wait_for(state="visible", timeout=15000)
+        except Exception:
+            pass
 
     # ---------------------------------------------------------------------------
     # 1. Summary Cards Extraction
