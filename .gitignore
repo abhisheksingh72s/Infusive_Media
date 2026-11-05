@@ -11,3 +11,7 @@ screenshots/
 reports/
 logs/
 .DS_Store
+token.json
+client_secret.json
+client_sec.json
+core/auth/credentials/
