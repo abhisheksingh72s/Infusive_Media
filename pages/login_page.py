@@ -34,6 +34,38 @@ class LoginPage:
 
     def wait_for_dashboard(self):
         self.page.wait_for_url("**/dashboard", timeout=15000)
+        self.dismiss_invoice_due_reminder()
+
+    def dismiss_invoice_due_reminder(self, timeout: int = 1500) -> bool:
+        """
+        Check if the global 'Invoice Due Reminder' notification card is present.
+        If present, dismiss it by clicking 'Dismiss' or '✕'.
+        Returns True if a card was dismissed, False otherwise.
+        """
+        try:
+            card = self.page.locator("div.css-1hyhc6u, div:has-text('Invoice Due Reminder')").first
+            if card.is_visible(timeout=timeout):
+                # Try clicking 'Dismiss' button first
+                dismiss_btn = card.locator("button:has-text('Dismiss'), button.css-i8y1hn").first
+                if dismiss_btn.is_visible(timeout=500):
+                    dismiss_btn.click()
+                    try:
+                        card.wait_for(state="hidden", timeout=3000)
+                    except Exception:
+                        pass
+                    return True
+                # Try clicking '✕' close button
+                close_btn = card.locator("button:has-text('✕'), button.css-1o2np39").first
+                if close_btn.is_visible(timeout=500):
+                    close_btn.click()
+                    try:
+                        card.wait_for(state="hidden", timeout=3000)
+                    except Exception:
+                        pass
+                    return True
+        except Exception:
+            pass
+        return False
 
     def login(self, email, password, remember_me=None):
         self.enter_email(email)
@@ -41,6 +73,7 @@ class LoginPage:
         if remember_me:
             self.click_remember_me()
         self.click_login()
+        self.dismiss_invoice_due_reminder()
 
     def logout(self):
         try:

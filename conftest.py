@@ -202,6 +202,57 @@ def module_reports(request):
         request.node, "zip"
     )
 
+    try:
+        # Global auto-dismissal for 'Invoice Due Reminder' notification card
+        def _dismiss_invoice_due_handler(locator):
+            try:
+                dismiss_btn = locator.locator("button:has-text('Dismiss'), button:has-text('✕'), button.css-i8y1hn, button.css-1o2np39").first
+                if dismiss_btn.is_visible():
+                    dismiss_btn.click()
+                else:
+                    locator.evaluate("el => el.remove()")
+            except Exception:
+                try:
+                    locator.evaluate("el => el.remove()")
+                except Exception:
+                    pass
+
+        page.add_locator_handler(
+            page.locator("div.css-1hyhc6u, div:has-text('Invoice Due Reminder')").first,
+            _dismiss_invoice_due_handler,
+        )
+    except Exception:
+        pass
+
+    try:
+        page.add_init_script("""
+            document.addEventListener('DOMContentLoaded', () => {
+                const style = document.createElement('style');
+                style.innerHTML = '.chakra-toast, .chakra-toast__portal, ul[role="region"] { pointer-events: none !important; }';
+                document.head.appendChild(style);
+            });
+            // Global background watcher to dismiss or close Invoice Due Reminder cards immediately when rendered
+            const _autoDismissReminderCards = () => {
+                document.querySelectorAll('.css-1hyhc6u, div:has(> .css-vpkk06)').forEach(card => {
+                    if (card.textContent && card.textContent.includes('Invoice Due Reminder')) {
+                        const dismissBtn = card.querySelector('button.css-i8y1hn') 
+                                        || Array.from(card.querySelectorAll('button')).find(b => b.textContent && b.textContent.includes('Dismiss'))
+                                        || card.querySelector('button.css-1o2np39')
+                                        || Array.from(card.querySelectorAll('button')).find(b => b.textContent && b.textContent.includes('✕'));
+                        if (dismissBtn) {
+                            dismissBtn.click();
+                        } else {
+                            card.remove();
+                        }
+                    }
+                });
+            };
+            setInterval(_autoDismissReminderCards, 1000);
+            document.addEventListener('DOMContentLoaded', _autoDismissReminderCards);
+        """)
+    except Exception:
+        pass
+
     tracing_started = False
     try:
         page.context.tracing.start(screenshots=True, snapshots=True, sources=True)

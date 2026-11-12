@@ -260,6 +260,129 @@ class LeadPoolPage:
         logger.info(f"Lead ID: {lead_id} | Assigned To: {assigned_to}")
         return lead_id, assigned_to
 
+    def self_assign_lead(self, company_name: str) -> None:
+        """
+        In Lead Pool table, find the row by company name, click the self-assign icon,
+        and confirm any assignment modal if present.
+        """
+        logger.info(f"Self-assigning lead for company '{company_name}' in Lead Pool...")
+        self.go_to_lead_pool()
+        self.page.wait_for_timeout(1000)
+
+        # Search for company name if search input is visible
+        search_box = self.page.locator("input[placeholder*='Search'], input[type='search']").first
+        if search_box.is_visible():
+            search_box.fill(company_name)
+            self.page.keyboard.press("Enter")
+            self.page.wait_for_timeout(1000)
+
+        table = DynamicTable(self.page)
+        row = table.find_row(column="COMPANY", value=company_name, match_partial=True)
+        action_cell = row.get_cell("ACTION")
+        self_assign_icon = action_cell.locator("img[src*='self-assign-icon'], [title*='Self Assign']").first
+        if not self_assign_icon.is_visible():
+            self_assign_icon = action_cell.locator("img").filter(has_not=self.page.locator("img[src*='history']")).first
+
+        self_assign_icon.click(force=True)
+        self.page.wait_for_timeout(1000)
+
+        # Handle any confirmation modal if present
+        modal = self.page.locator("section[aria-modal='true'], [role='dialog']").first
+        if modal.is_visible():
+            confirm_btn = modal.locator("button:has-text('Accept'), button:has-text('Confirm'), button:has-text('Yes')").first
+            if confirm_btn.is_visible():
+                confirm_btn.click()
+                modal.wait_for(state="hidden", timeout=5000)
+
+        logger.info(f"Lead '{company_name}' self-assigned successfully.")
+        self.page.wait_for_timeout(1500)
+
+    def reassign_lead(self, company_name: str, bdm_name: str = "BDM 1", note: str = "Reassigning lead via automated workflow") -> None:
+        """
+        In Lead Pool table, find the row by company name, click Action Icon #4 (Reassign Lead: 👤⇋👤),
+        select the target BDM from the 'Select team member' dropdown, enter optional note,
+        and click the 'Reassign' button.
+        """
+        logger.info(f"Reassigning lead for company '{company_name}' to '{bdm_name}' in Lead Pool...")
+        self.go_to_lead_pool()
+        self.page.wait_for_timeout(1000)
+
+        # Search for company name if search input is visible
+        search_box = self.page.locator("input[placeholder*='Search'], input[type='search']").first
+        if search_box.is_visible():
+            search_box.fill(company_name)
+            self.page.keyboard.press("Enter")
+            self.page.wait_for_timeout(1500)
+
+        table = DynamicTable(self.page)
+        row = table.find_row(column="COMPANY", value=company_name, match_partial=True)
+        action_cell = row.get_cell("ACTION")
+
+        # 4th action icon: button with 👤⇋👤 or tooltip 'Reassign Lead'
+        reassign_btn = action_cell.locator("button:has-text('👤⇋👤'), button[aria-label*='Reassign'], [title*='Reassign']").first
+        if not reassign_btn.is_visible():
+            reassign_btn = action_cell.locator("button").first
+
+        reassign_btn.scroll_into_view_if_needed()
+        reassign_btn.click(force=True)
+        self.page.wait_for_timeout(1000)
+
+        # Modal is section[aria-modal='true'] or [role='dialog'] with header 'Reassign Lead'
+        modal = self.page.locator("section[aria-modal='true'], [role='dialog'], .chakra-modal__content").filter(
+            has_text="Reassign Lead"
+        ).first
+        if not modal.is_visible():
+            modal = self.page.locator("section[aria-modal='true'], [role='dialog'], .chakra-modal__content").first
+        
+        modal.wait_for(state="visible", timeout=10000)
+        logger.info("Reassign Lead modal is visible.")
+
+        # Select team member from native <select>
+        member_select = modal.locator("select").first
+        member_select.wait_for(state="visible", timeout=10000)
+        
+        # Check available options in select
+        options = member_select.locator("option").all()
+        option_texts = [opt.inner_text().strip() for opt in options]
+        logger.info(f"Available team members in Reassign modal: {option_texts}")
+
+        # Match bdm_name (or partial match)
+        target_option = None
+        for opt_text in option_texts:
+            if bdm_name.lower() in opt_text.lower():
+                target_option = opt_text
+                break
+        
+        if target_option:
+            member_select.select_option(label=target_option)
+            logger.info(f"Selected member '{target_option}'.")
+        else:
+            # Fallback to first non-empty option
+            for opt_text in option_texts:
+                if opt_text and not opt_text.startswith("Select"):
+                    member_select.select_option(label=opt_text)
+                    logger.info(f"Selected fallback member '{opt_text}'.")
+                    break
+
+        # Fill note if textarea present
+        note_area = modal.locator("textarea")
+        if note_area.is_visible():
+            note_area.fill(note)
+
+        # Click 'Reassign' button
+        reassign_action_btn = modal.locator("button:has-text('Reassign')").last
+        reassign_action_btn.click()
+        logger.info("Clicked 'Reassign' button inside modal.")
+
+        # Wait for modal to hide
+        try:
+            modal.wait_for(state="hidden", timeout=10000)
+        except Exception:
+            self.page.wait_for_timeout(2000)
+
+        logger.info(f"Lead '{company_name}' successfully reassigned to '{bdm_name}'.")
+        self.page.wait_for_timeout(1500)
+
 
 class CreatedLeadPage:
     def __init__(self, page):
@@ -360,17 +483,18 @@ class MyLeadsPage:
 
     def accept_lead_if_assigned(self, row: TableRow):
         """
-        If lead is in 'Assigned' status, click the green checkmark action icon in ACTION column,
+        If lead is in 'Assigned', 'New', or 'Reassigned' status, click the green checkmark action icon in ACTION column,
         fill optional reason in the 'Accept Lead' modal, click Accept button, and wait for modal to close.
         """
         current_status = row.get_value("LEAD STATUS").strip()
         logger.info(f"Current Lead Status in My Leads: '{current_status}'")
-        if current_status.lower() in ["assigned", "new"]:
-            logger.info("Lead status is 'Assigned'. Accepting lead via Accept Lead modal...")
-            action_cell = row.get_cell("ACTION")
-            green_check = action_cell.locator("button, svg, a").first
-            if green_check.is_visible():
-                green_check.click()
+        action_cell = row.get_cell("ACTION")
+        accept_btn = action_cell.locator("button, svg, a, div[cursor='pointer']").first
+
+        if current_status.lower() in ["assigned", "new", "reassigned"] or accept_btn.is_visible():
+            logger.info("Lead status is '%s'. Accepting lead via Accept Lead modal...", current_status)
+            if accept_btn.is_visible():
+                accept_btn.click(force=True)
                 self.page.wait_for_timeout(1000)
 
             # Locate the Accept Lead modal specifically

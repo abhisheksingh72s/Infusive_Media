@@ -14,4 +14,21 @@ logs/
 token.json
 client_secret.json
 client_sec.json
+# Playwright & Test Results
+test-results/
+playwright-report/
+downloads/
+allure-results/
+*.pdf
+!testdata/static/**/*.pdf
+
+# Manuals, Flow Documentation & Images
+*.docx
+!testdata/static/**/*.docx
+*_flow.md
+*_user_manual.md
+*flow*.md
+*user_manual*.md
+module_wise_workflow_image/
+
 core/auth/credentials/

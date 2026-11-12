@@ -114,7 +114,7 @@ class ProjectPage:
     def switch_to_tab(self, tab_name: str):
         """
         Switch between tabs on Project Details page:
-        'Project Details', 'Resource Allocation', 'Task Management'.
+        'Project Details', 'Budget', 'Resource Allocation', 'Task Management', 'Billing & Invoices'.
         """
         logger.info("Switching to tab: '%s'...", tab_name)
         tab_locator = self.page.locator(
@@ -127,6 +127,27 @@ class ProjectPage:
             btn.click()
         self.page.wait_for_timeout(1500)
         logger.info("Active tab is now '%s'.", tab_name)
+
+    def open_project_details_tab(self):
+        """Switch to 'Project Details' tab."""
+        self.switch_to_tab("Project Details")
+
+    def open_budget_tab(self):
+        """Switch to 'Budget' tab."""
+        self.switch_to_tab("Budget")
+
+    def open_resource_allocation_tab(self):
+        """Switch to 'Resource Allocation' tab."""
+        self.switch_to_tab("Resource Allocation")
+
+    def open_task_management_tab(self):
+        """Switch to 'Task Management' tab."""
+        self.switch_to_tab("Task Management")
+
+    def get_all_project_tabs(self) -> list[str]:
+        """Return list of all tab names on the Project Details page."""
+        tab_buttons = self.page.locator("button[role='tab']").all()
+        return [btn.inner_text().strip() for btn in tab_buttons if btn.is_visible()]
 
     def capture_toast(self, timeout=4000) -> str:
         """Capture toast/status alert message."""
@@ -156,15 +177,19 @@ class ProjectPage:
     def click_edit_project_icon(self):
         """Click Edit Project button on project detail page."""
         logger.info("Clicking Edit Project button...")
-        edit_btn = self.page.get_by_role("button", name="Edit Project")
-        if edit_btn.count() == 0 or not edit_btn.first.is_visible():
+        self.open_project_details_tab()
+        self.page.wait_for_timeout(500)
+        edit_btn = self.page.locator("button.project-details-edit-button, button:has-text('Edit Project')").first
+        if edit_btn.count() == 0 or not edit_btn.is_visible():
+            edit_btn = self.page.get_by_role("button", name="Edit Project")
+        if edit_btn.count() == 0 or not edit_btn.is_visible():
             edit_btn = self.page.locator("button.chakra-button").filter(has_text="Edit Project")
         if edit_btn.count() == 0 or not edit_btn.first.is_visible():
             edit_btn = self.page.get_by_role("button", name="Edit", exact=False)
         if edit_btn.count() == 0 or not edit_btn.first.is_visible():
             edit_btn = self.page.locator("button[aria-label*='Edit'], button[title*='Edit'], svg[data-icon='edit']")
 
-        if edit_btn.count() > 0 and edit_btn.first.is_visible():
+        if edit_btn.count() > 0 and edit_btn.is_visible():
             edit_btn.first.click()
             logger.info("Edit Project button clicked successfully via primary locator.")
         else:
@@ -173,29 +198,85 @@ class ProjectPage:
                 fallback_btn.first.click()
                 logger.info("Clicked fallback Edit button.")
 
-        self.page.wait_for_timeout(1000)
-        logger.info("Edit Project mode enabled / modal opened.")
+        # Wait for in-place edit action buttons ('Save' / 'Cancel') to be visible
+        save_btn = self.page.locator(".project-details-actions button:has-text('Save'), button:has-text('Save')").first
+        try:
+            save_btn.wait_for(state="visible", timeout=10000)
+            logger.info("In-place edit mode active: Save and Cancel buttons visible.")
+        except Exception as e:
+            logger.warning(f"Save button wait warning: {e}. Retrying click on edit button...")
+            if edit_btn.count() > 0 and edit_btn.is_visible():
+                edit_btn.click(force=True)
+                save_btn.wait_for(state="visible", timeout=5000)
+
+        logger.info("Edit Project mode enabled.")
+
+    def get_project_details_form_data(self) -> dict:
+        """Extract structured fields from Tab 1: Project Details form grid."""
+        grid = self.page.locator(".project-details-form-grid, .project-details-card").first
+        grid.wait_for(state="visible", timeout=10000)
+
+        def get_field_val(label_text: str, is_select: bool = False) -> str:
+            field = grid.locator(f".project-details-field:has-text('{label_text}')")
+            if field.count() == 0:
+                return ""
+            if is_select:
+                select_elem = field.locator("select").first
+                return select_elem.input_value() if select_elem.is_visible() else ""
+            else:
+                inp = field.locator("input").first
+                if inp.count() > 0 and inp.is_visible():
+                    return inp.input_value()
+                disp = field.locator(".project-service-display, p").first
+                return disp.inner_text().strip() if disp.count() > 0 and disp.is_visible() else ""
+
+        return {
+            "company_name": get_field_val("Company Name"),
+            "project_from": get_field_val("Project From", is_select=True),
+            "service_interested_in": get_field_val("Service Interested In"),
+            "lead_source": get_field_val("Lead Source", is_select=True),
+            "currency": get_field_val("Currency", is_select=True),
+            "monthly_budget": get_field_val("Monthly Budget"),
+            "duration": get_field_val("Project Estimated Duration"),
+            "total_project_cost": get_field_val("Total Project Cost"),
+            "start_date": get_field_val("Project Start Date"),
+            "status": get_field_val("Project Status", is_select=True),
+        }
+
+    def get_project_summary_kpis(self) -> dict:
+        """Extract KPI metrics from Tab 1: Project Details summary deck (.project-summary-grid)."""
+        deck = self.page.locator(".project-summary-grid").first
+        deck.wait_for(state="visible", timeout=10000)
+        cards = deck.locator(".project-summary-card").all()
+        kpis = {}
+        for c in cards:
+            label_elem = c.locator(".project-summary-label").first
+            val_elem = c.locator(".project-summary-value, .project-summary-status").first
+            if label_elem.is_visible() and val_elem.is_visible():
+                label = label_elem.inner_text().strip()
+                val = val_elem.inner_text().strip()
+                kpis[label] = val
+        return kpis
+
+    def get_project_description(self) -> str:
+        """Extract Project Description textarea text on Tab 1."""
+        desc = self.page.locator("textarea.project-description-textarea, .project-description-box textarea").first
+        return desc.input_value() if desc.is_visible() else ""
 
     def verify_and_trigger_field_validations(self, qa_logger=None) -> dict:
         """
         Validate required fields on Edit Project form in exact sequence:
-        1. Project Amount (₹) * -> clear -> Save -> capture error toast -> re-fill valid amount (50000)
+        1. Monthly Budget (₹) * -> clear -> Save -> capture error toast -> re-fill valid amount (50000)
         2. Project Duration (Months) * -> clear -> Save -> capture error toast -> re-fill valid duration (6)
         3. Project Start Date * -> clear -> Save -> capture error toast -> re-fill valid date (2026-11-01)
         """
         logger.info("Testing required field validations on Edit Project form in sequential order...")
         captured_toasts = []
 
-        modal = self.page.locator("section[aria-modal='true'], [role='dialog'], .chakra-modal__content")
-        form_container = modal.first if modal.count() > 0 and modal.first.is_visible() else self.page.locator("form, main, #root").first
+        card = self.page.locator(".project-details-card, form, main").first
 
         def get_save_btn():
-            btn = form_container.get_by_role("button", name="Save")
-            if btn.count() == 0 or not btn.first.is_visible():
-                btn = form_container.get_by_role("button", name="Update")
-            if btn.count() == 0 or not btn.first.is_visible():
-                btn = form_container.locator("button[type='submit'], button.chakra-button:has-text('Save'), button.chakra-button:has-text('Update')")
-            return btn.first
+            return card.locator(".project-details-actions button:has-text('Save'), button:has-text('Save')").first
 
         def capture_validation_toast(field_name: str = ""):
             toast = self.capture_toast(timeout=3000)
@@ -206,10 +287,9 @@ class ProjectPage:
                     qa_logger.log_toast(toast, field_name=field_name)
             return toast
 
-        amount_input = form_container.locator("label:has-text('Monthly Budget') + input, input[placeholder*='amount'], input[name='monthlyBudget'], input[type='number']").first
-        duration_input = form_container.locator("label:has-text('Duration') + input, input[placeholder*='duration'], input[name='duration']").first
-        date_inputs = form_container.locator("input[type='date']").all()
-        start_date_input = date_inputs[0] if len(date_inputs) > 0 else None
+        amount_input = card.locator(".project-details-field:has-text('Monthly Budget') input, input[name='monthlyBudget']").first
+        duration_input = card.locator(".project-details-field:has-text('Duration') input, input[name='duration']").first
+        start_date_input = card.locator(".project-details-field:has-text('Start Date') input, input[type='date']").first
 
         # 1. Project Amount (₹) *
         if amount_input.count() > 0 and amount_input.is_visible():
@@ -234,7 +314,7 @@ class ProjectPage:
             duration_input.fill("6")
 
         # 3. Project Start Date *
-        if start_date_input and start_date_input.is_visible():
+        if start_date_input.count() > 0 and start_date_input.is_visible():
             logger.info("Validating Field 3: Project Start Date *")
             start_date_input.fill("")
             save_btn = get_save_btn()
@@ -253,39 +333,224 @@ class ProjectPage:
     def fill_project_details(self, budget: str = "50000", duration: str = "6", start_date: str = "2026-11-01"):
         """Populate mandatory fields on Project Details tab."""
         logger.info(f"Filling Project Details: Budget={budget}, Duration={duration}, StartDate={start_date}")
-        modal = self.page.locator("section[aria-modal='true'], [role='dialog'], .chakra-modal__content")
-        form_container = modal.first if modal.count() > 0 and modal.first.is_visible() else self.page.locator("form, main, #root").first
+        card = self.page.locator(".project-details-card, form, main").first
 
-        budget_inp = form_container.locator("label:has-text('Monthly Budget') + input, input[name='monthlyBudget'], input[type='number']").first
+        budget_inp = card.locator(".project-details-field:has-text('Monthly Budget') input, input[name='monthlyBudget']").first
         if budget_inp.count() > 0 and budget_inp.is_visible():
             budget_inp.fill(budget)
 
-        dur_inp = form_container.locator("label:has-text('Duration') + input, input[name='duration']").first
+        dur_inp = card.locator(".project-details-field:has-text('Duration') input, input[name='duration']").first
         if dur_inp.count() > 0 and dur_inp.is_visible():
             dur_inp.fill(duration)
 
-        date_inps = form_container.locator("input[type='date']").all()
-        if len(date_inps) > 0 and date_inps[0].is_visible():
-            date_inps[0].fill(start_date)
+        date_inp = card.locator(".project-details-field:has-text('Start Date') input, input[type='date']").first
+        if date_inp.count() > 0 and date_inp.is_visible():
+            date_inp.fill(start_date)
 
         self.page.wait_for_timeout(500)
 
     def save_project(self):
-        """Click Save/Update on Edit Project form and wait for changes to submit."""
+        """Click Save on Edit Project form and wait for changes to submit."""
         logger.info("Saving project details changes...")
-        modal = self.page.locator("section[aria-modal='true'], [role='dialog'], .chakra-modal__content")
-        form_container = modal.first if modal.count() > 0 and modal.first.is_visible() else self.page.locator("form, main, #root").first
-
-        save_btn = form_container.get_by_role("button", name="Save")
-        if save_btn.count() == 0 or not save_btn.first.is_visible():
-            save_btn = form_container.get_by_role("button", name="Update")
-        if save_btn.count() == 0 or not save_btn.first.is_visible():
-            save_btn = form_container.locator("button[type='submit'], button.chakra-button:has-text('Save'), button.chakra-button:has-text('Update')")
-
-        if save_btn.count() > 0 and save_btn.first.is_visible():
-            save_btn.first.click()
+        card = self.page.locator(".project-details-card, form, main").first
+        save_btn = card.locator(".project-details-actions button:has-text('Save'), button:has-text('Save')").first
+        if save_btn.count() > 0 and save_btn.is_visible():
+            save_btn.click()
             self.page.wait_for_timeout(2000)
             logger.info("Save project details submitted successfully.")
+
+    def select_currency(self, currency_code: str = "USD"):
+        """Select Currency in Edit Project mode (e.g. 'INR', 'USD', 'EUR')."""
+        logger.info(f"Selecting Project Currency: '{currency_code}'...")
+        card = self.page.locator(".project-details-card, form, main").first
+        currency_select = card.locator(".project-details-field:has-text('Currency') select").first
+        if currency_select.is_visible():
+            currency_select.select_option(currency_code)
+            self.page.wait_for_timeout(500)
+            logger.info(f"Currency '{currency_code}' selected successfully.")
+
+    def select_services_interested_in(self, services: list[str]):
+        """Select multiple services in Edit Project mode from the Chakra menu dropdown."""
+        logger.info(f"Selecting services interested in: {services}...")
+        card = self.page.locator(".project-details-card, form, main").first
+        svc_btn = card.locator(
+            ".project-details-field:has-text('Service Interested In') button, button:has-text('Select Services'), button[id*='menu-button']"
+        ).first
+        svc_btn.scroll_into_view_if_needed()
+        svc_btn.click()
+        self.page.wait_for_timeout(600)
+
+        for svc in services:
+            item = self.page.locator(f"[role='menuitem']:has-text('{svc}'), label:has-text('{svc}')").first
+            if item.is_visible():
+                checkbox = item.locator("input[type='checkbox']").first
+                if checkbox.count() > 0 and not checkbox.is_checked():
+                    item.click()
+                    logger.info(f"Checked service: '{svc}'")
+                elif checkbox.count() == 0:
+                    item.click()
+                    logger.info(f"Clicked service item: '{svc}'")
+                self.page.wait_for_timeout(300)
+            else:
+                logger.warning(f"Service option '{svc}' not visible in menu.")
+
+        # Dismiss menu
+        self.page.keyboard.press("Escape")
+        self.page.wait_for_timeout(400)
+
+    def set_project_status(self, status_label: str = "Active"):
+        """Select Project Status in Edit Project mode ('Active' or 'Inactive')."""
+        logger.info(f"Setting Project Status to: '{status_label}'...")
+        card = self.page.locator(".project-details-card, form, main").first
+        status_select = card.locator(".project-details-field:has-text('Project Status') select").first
+        if status_select.is_visible():
+            val = "true" if "active" in status_label.lower() and "inactive" not in status_label.lower() else "false"
+            try:
+                status_select.select_option(value=val)
+            except Exception:
+                status_select.select_option(label=status_label)
+            self.page.wait_for_timeout(400)
+            logger.info(f"Project Status set to '{status_label}'.")
+
+    def set_project_description(self, description_text: str):
+        """Set Project Description textarea in Edit Project mode."""
+        logger.info(f"Setting Project Description: '{description_text[:40]}...'")
+        card = self.page.locator(".project-details-card, form, main").first
+        desc_box = card.locator("textarea.project-description-textarea, .project-description-box textarea").first
+        if desc_box.is_visible():
+            desc_box.fill(description_text)
+            self.page.wait_for_timeout(300)
+
+    def get_budget_and_cost_labels(self) -> dict:
+        """Get the exact label text for Monthly Budget and Total Project Cost to verify currency symbol."""
+        card = self.page.locator(".project-details-card, form, main").first
+        budget_lbl = card.locator(".project-details-field:has-text('Monthly Budget') label").first
+        cost_lbl = card.locator(".project-details-field:has-text('Total Project Cost') label").first
+        return {
+            "monthly_budget_label": budget_lbl.inner_text().strip() if budget_lbl.is_visible() else "",
+            "total_project_cost_label": cost_lbl.inner_text().strip() if cost_lbl.is_visible() else "",
+        }
+
+    def get_status_badge_styling(self) -> dict:
+        """Extract text, computed color, and background-color of the Project Status KPI badge."""
+        card = self.page.locator(".project-details-card, main").first
+        badge = card.locator(".project-summary-status, .project-summary-card:has-text('Project Status') p:last-child").first
+        badge.wait_for(state="visible", timeout=10000)
+        return badge.evaluate("""el => {
+            const style = window.getComputedStyle(el);
+            return {
+                text: el.innerText.trim(),
+                color: style.color,
+                backgroundColor: style.backgroundColor,
+                className: el.className
+            };
+        }""")
+
+    def get_services_box_details(self) -> dict:
+        """Extract content from the Services summary card next to Project Description."""
+        card = self.page.locator(".project-details-card, main").first
+        services_section = card.locator("div:has(> p:text-is('Services')), div:has-text('Services')").filter(has_text="Services").last
+        if services_section.count() == 0:
+            return {"raw_text": "", "services": [], "is_empty": True}
+
+        raw_text = services_section.inner_text().strip()
+        items = [s.strip() for s in raw_text.split("\n") if s.strip() and s.strip() != "Services"]
+        return {
+            "raw_text": raw_text,
+            "services": items,
+            "is_empty": "No Services Found" in raw_text
+        }
+
+    def get_start_date_input_attributes(self) -> dict:
+        """Inspect HTML attributes of Project Start Date input."""
+        card = self.page.locator(".project-details-card, form, main").first
+        date_inp = card.locator(".project-details-field:has-text('Start Date') input, input[type='date']").first
+        if date_inp.count() == 0:
+            return {}
+        return date_inp.evaluate("""el => ({
+            min: el.getAttribute('min') || '',
+            max: el.getAttribute('max') || '',
+            value: el.value || '',
+            type: el.type,
+            required: el.hasAttribute('required')
+        })""")
+
+    def attempt_save_with_start_date(self, test_date: str) -> dict:
+        """
+        Fill a specific start date (e.g. past date), click Save, and check if saved or error toast appears.
+        """
+        logger.info(f"Attempting to set Project Start Date to: {test_date}")
+        card = self.page.locator(".project-details-card, form, main").first
+        date_inp = card.locator(".project-details-field:has-text('Start Date') input, input[type='date']").first
+        date_inp.fill(test_date)
+
+        save_btn = card.locator(".project-details-actions button:has-text('Save'), button:has-text('Save')").first
+        save_btn.click()
+        self.page.wait_for_timeout(1500)
+
+        toasts = self.page.locator(".chakra-toast, [role='alert'], [role='status']").all_inner_texts()
+        is_still_edit = save_btn.is_visible()
+        return {
+            "date_set": test_date,
+            "toasts": toasts,
+            "saved": not is_still_edit,
+            "is_still_edit": is_still_edit,
+        }
+
+    @staticmethod
+    def is_color_green(rgb_str: str) -> bool:
+        """Check if an rgb(...) string has dominant green channel."""
+        import re
+        m = re.search(r"rgb\((\d+),\s*(\d+),\s*(\d+)\)", rgb_str)
+        if m:
+            r, g, b = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            return g > r and g > b
+        return False
+
+    @staticmethod
+    def is_color_red(rgb_str: str) -> bool:
+        """Check if an rgb(...) string has dominant red channel."""
+        import re
+        m = re.search(r"rgb\((\d+),\s*(\d+),\s*(\d+)\)", rgb_str)
+        if m:
+            r, g, b = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            return r > g and r > b
+        return False
+
+    def edit_project_add_service(self, service_name: str):
+        """
+        Open Edit Project mode on Project Details tab, add a new service
+        from the 'Service Interested In' dropdown, and save changes.
+        """
+        logger.info(f"Adding service '{service_name}' to project via Edit Project...")
+        self.open_project_details_tab()
+        self.click_edit_project_icon()
+        self.page.wait_for_timeout(800)
+
+        # Locate Service Interested In dropdown button
+        svc_btn = self.page.locator("label:has-text('Service Interested In') + div button, div:has-text('Service Interested In') button").first
+        if not svc_btn.is_visible():
+            svc_btn = self.page.locator("button:has-text('selected'), button:has-text('Select Services')").first
+        svc_btn.click()
+        self.page.wait_for_timeout(500)
+
+        # Check or select the service
+        svc_option = self.page.locator(f"[role='menuitem']:has-text('{service_name}'), label:has-text('{service_name}')").first
+        if svc_option.is_visible():
+            svc_option.click()
+            self.page.wait_for_timeout(500)
+            logger.info(f"Service '{service_name}' selected.")
+        else:
+            logger.warning(f"Service option '{service_name}' not directly visible in dropdown.")
+
+        # Close dropdown if open
+        self.page.keyboard.press("Escape")
+        self.page.wait_for_timeout(300)
+
+        # Save project
+        self.save_project()
+        self.page.wait_for_timeout(1500)
+        logger.info(f"Service '{service_name}' successfully added and project saved.")
 
     def verify_project_persistence(self, search_term: str):
         """Refresh page and verify project data persists."""
@@ -589,3 +854,466 @@ class ProjectPage:
             "allocation": alloc_data,
             "task_name": task_name,
         }
+
+    # -------------------------------------------------------------------------
+    # PHASE 4.35: SERVICE BUDGET CONFIGURATION (BUDGET TAB)
+    # -------------------------------------------------------------------------
+
+    def get_service_budget_table_rows(self):
+        """Locate all service rows in the visible Service Budget table."""
+        active_panel = self.page.locator("div[role='tabpanel']:not([hidden]), div.chakra-tabs__tab-panel:visible").first
+        return active_panel.locator("table tbody tr")
+
+    def get_all_service_budgets(self) -> list[dict]:
+        """Extract all service budget records from the Service Budget table."""
+        rows = self.get_service_budget_table_rows().all()
+        budgets = []
+        for r in rows:
+            cells = [td.inner_text().strip().replace("\n", " ") for td in r.locator("td").all()]
+            if len(cells) >= 10:
+                budgets.append({
+                    "service_name": cells[0],
+                    "service_type": cells[1],
+                    "currency": cells[2],
+                    "monthly_budget": cells[3],
+                    "duration": cells[4],
+                    "total_cost": cells[5],
+                    "start_date": cells[6],
+                    "status": cells[7],
+                    "budget_status": cells[8],
+                })
+            elif len(cells) >= 8:
+                budgets.append({
+                    "service_name": cells[0],
+                    "service_type": cells[1],
+                    "currency": "",
+                    "monthly_budget": cells[2],
+                    "duration": cells[3],
+                    "total_cost": cells[4],
+                    "start_date": cells[5],
+                    "status": cells[6],
+                    "budget_status": cells[7],
+                })
+        return budgets
+
+    def get_service_budget(self, service_name: str) -> dict | None:
+        """Find and return the budget record for a specific service."""
+        for b in self.get_all_service_budgets():
+            if service_name.lower() in b["service_name"].lower():
+                return b
+        return None
+
+    def click_edit_service_budget(self, service_name: str):
+        """Click the Configure or Edit button on the service row in Budget tab."""
+        logger.info("Opening edit/configure budget form for service: '%s'...", service_name)
+        active_panel = self.page.locator("div[role='tabpanel']:not([hidden]), div.chakra-tabs__tab-panel:visible").first
+        rows = active_panel.locator("table tbody tr").all()
+        target_row = None
+        for r in rows:
+            if service_name.lower() in r.inner_text().lower():
+                target_row = r
+                break
+
+        if not target_row:
+            raise ValueError(f"Service '{service_name}' not found in Service Budget table.")
+
+        action_btn = target_row.locator("button.budget-action-btn, button:has-text('Configure'), button:has-text('Edit')").first
+        action_btn.scroll_into_view_if_needed()
+        action_btn.click(force=True)
+        self.page.wait_for_timeout(500)
+
+        # Scoped form card (#budget-edit-form or .budget-form-card)
+        form_card = self.page.locator("#budget-edit-form, .budget-form-card").first
+        form_card.wait_for(state="visible", timeout=10000)
+        logger.info("Edit Service Budget form opened successfully.")
+        return form_card
+
+    def configure_service_budget(
+        self,
+        service_name: str,
+        service_type: str = "Recurring",
+        amount: int | str = 40000,
+        duration: int | str = 6,
+        duration_unit: str = "Months",
+        start_date: str = "2026-11-01",
+        status: str = "Active",
+    ) -> dict:
+        """
+        Configure or edit the budget for a service in the Budget tab:
+        - Sets Service Type (Recurring / OneTime)
+        - Fills Monthly Budget or Service Amount
+        - Sets Estimated Duration & unit
+        - Sets Start Date & Status
+        - Clicks Save Budget and verifies status becomes 'Configured'.
+        """
+        logger.info(
+            "Configuring budget for service '%s': type=%s, amount=%s, duration=%s %s",
+            service_name, service_type, amount, duration, duration_unit
+        )
+        form_card = self.click_edit_service_budget(service_name)
+
+        # 1. Service Type select (Recurring="1", OneTime="2")
+        type_select = form_card.locator(".budget-field:has-text('Service Type') select").first
+        if type_select.is_visible():
+            val = "1" if "recur" in service_type.lower() else "2"
+            type_select.select_option(value=val)
+            self.page.wait_for_timeout(300)
+
+        # 2. Amount input:
+        # In Recurring mode: label is "Monthly Budget"
+        # In OneTime mode: label is "Service Amount / Estimated Amount"
+        amount_input = form_card.locator(
+            ".budget-field:has-text('Monthly Budget') input, .budget-field:has-text('Service Amount') input, .budget-field:has-text('Amount') input, input[placeholder='Enter amount']"
+        ).first
+        if amount_input.is_visible():
+            amount_input.fill(str(amount))
+
+        # 3. Estimated Duration & Unit
+        dur_input = form_card.locator(
+            ".budget-field:has-text('Estimated Duration') input[type='number'], input[placeholder='e.g. 6']"
+        ).first
+        if dur_input.is_visible():
+            dur_input.fill(str(duration))
+
+        dur_unit_select = form_card.locator(".budget-field:has-text('Estimated Duration') select").first
+        if dur_unit_select.is_visible():
+            unit_val = "2" if "month" in duration_unit.lower() else ("1" if "day" in duration_unit.lower() else "3")
+            dur_unit_select.select_option(value=unit_val)
+
+        # 4. Start Date
+        start_date_input = form_card.locator(".budget-field:has-text('Start Date') input[type='date']").first
+        if start_date_input.is_visible():
+            start_date_input.fill(start_date)
+
+        # 5. Status dropdown (Active, Deactive, Hold, Completed)
+        status_select = form_card.locator(".budget-field:has-text('Status') select").first
+        if status_select.is_visible():
+            try:
+                status_select.select_option(label=status)
+            except Exception:
+                status_select.select_option(value=status)
+
+        self.page.wait_for_timeout(400)
+
+        # 6. Click 'Save Budget'
+        logger.info("Clicking 'Save Budget' button...")
+        self.page.evaluate("() => document.querySelectorAll('.chakra-toast').forEach(el => el.remove())")
+        save_btn = form_card.locator("button:has-text('Save Budget')").first
+        save_btn.evaluate("el => el.click()")
+        self.page.wait_for_timeout(2000)
+
+        updated_budget = self.get_service_budget(service_name)
+        logger.info("Service '%s' updated budget: %s", service_name, updated_budget)
+        return updated_budget or {}
+
+    def get_budget_over_allocation_warning(self) -> dict:
+        """Inspect if the budget over-allocation warning banner is displayed in #budget-edit-form."""
+        form = self.page.locator("#budget-edit-form, .budget-form-card").first
+        warning_banner = form.locator("div:has-text('exceeded the Total Project Cost')").last
+        if warning_banner.count() == 0 or not warning_banner.is_visible():
+            return {"is_visible": False, "raw_text": "", "has_warning_icon": False}
+        text = warning_banner.inner_text().strip()
+        return {
+            "is_visible": True,
+            "raw_text": text,
+            "has_warning_icon": "⚠️" in text or warning_banner.locator("svg").count() > 0 or "exceeded" in text,
+        }
+
+    def cancel_edit_service_budget(self):
+        """Click Cancel on Edit Service Budget form to dismiss it."""
+        cancel_btn = self.page.locator("#budget-edit-form button:has-text('Cancel'), #budget-edit-form button:has-text('Close')").first
+        if cancel_btn.is_visible():
+            cancel_btn.click(force=True)
+            self.page.wait_for_timeout(500)
+
+    def get_service_budget_date_attributes(self, service_name: str) -> dict:
+        """Inspect HTML date input attributes in Edit Service Budget form."""
+        form_card = self.click_edit_service_budget(service_name)
+        date_inp = form_card.locator(".budget-field:has-text('Start Date') input[type='date']").first
+        if date_inp.count() == 0:
+            return {}
+        attrs = date_inp.evaluate("""el => ({
+            min: el.getAttribute('min') || '',
+            max: el.getAttribute('max') || '',
+            value: el.value || '',
+            type: el.type,
+            required: el.hasAttribute('required')
+        })""")
+        self.cancel_edit_service_budget()
+        return attrs
+
+    # -------------------------------------------------------------------------
+    # PHASE 4.4: BILLING & INVOICES / SERVICES CONFIGURATION
+    # -------------------------------------------------------------------------
+
+    def open_billing_invoices_tab(self):
+        """Switch to Billing & Invoices tab on Project Details page."""
+        logger.info("Opening 'Billing & Invoices' tab...")
+        self.switch_to_tab("Billing & Invoices")
+        self.page.wait_for_timeout(1000)
+        self.page.locator("button:has-text('Add Service'), button:has-text('Create Plan')").first.wait_for(
+            state="visible", timeout=10000
+        )
+        logger.info("'Billing & Invoices' tab opened successfully.")
+
+    def select_billing_type(self, billing_type: str = "One-Time"):
+        """Select Billing Type: 'One-Time' or 'Recurring'."""
+        logger.info("Selecting billing type: '%s'", billing_type)
+        radio_label = self.page.locator("div.chakra-tabs__tab-panels label.chakra-radio, label.chakra-radio").filter(has_text=billing_type).first
+        if radio_label.is_visible():
+            radio_label.click()
+        else:
+            self.page.locator(f"text='{billing_type}'").first.click()
+        self.page.wait_for_timeout(800)
+
+    def select_billing_currency(self, currency_code: str = "USD"):
+        """Select Billing Currency (INR, USD, EUR, GBP, AUD, CAD, SGD)."""
+        logger.info("Selecting billing currency: '%s'", currency_code)
+        curr_select = self.page.locator("div.chakra-tabs__tab-panels select[name='currencyCode'], select[name='currencyCode']").first
+        if curr_select.is_visible():
+            curr_select.select_option(currency_code)
+            self.page.wait_for_timeout(400)
+
+    def set_one_time_dates(self, invoice_date: str = None, due_date: str = None):
+        """Set Invoice Date and Due Date for One-Time Billing (YYYY-MM-DD)."""
+        if invoice_date:
+            logger.info(f"Setting One-Time Invoice Date to: {invoice_date}")
+            inv_inp = self.page.locator("div.chakra-tabs__tab-panels input[type='date']:visible, input[name*='invoiceDate']:visible").first
+            if inv_inp.is_visible():
+                inv_inp.fill(invoice_date)
+
+        if due_date:
+            logger.info(f"Setting One-Time Due Date to: {due_date}")
+            due_inp = self.page.locator("div.chakra-tabs__tab-panels input[type='date']:visible, input[name*='dueDate']:visible").nth(1)
+            if due_inp.is_visible():
+                due_inp.fill(due_date)
+        self.page.wait_for_timeout(400)
+
+    def select_payment_terms(self, terms: str = "30 Days"):
+        """Select payment terms."""
+        logger.info("Selecting payment terms: '%s'", terms)
+        terms_btn = self.page.locator("div.chakra-tabs__tab-panels button:has-text('Days'), button:has-text('Days')").first
+        if terms_btn.is_visible():
+            terms_btn.click()
+            self.page.wait_for_timeout(300)
+            option = self.page.locator(f"[role='menuitem']:has-text('{terms}')").first
+            if option.is_visible():
+                option.click()
+            self.page.wait_for_timeout(400)
+
+    def select_billing_cycle(self, cycle_name: str = "Monthly"):
+        """Select Billing Cycle: Monthly, Quarterly, Semi-Annually, Annually, etc."""
+        logger.info(f"Selecting billing cycle: '{cycle_name}'...")
+        # Menu button or select
+        cycle_menu_btn = self.page.locator("div.chakra-tabs__tab-panels button:has-text('Monthly'), div.chakra-tabs__tab-panels button:has-text('Cycle')").first
+        if cycle_menu_btn.is_visible():
+            cycle_menu_btn.click()
+            self.page.wait_for_timeout(300)
+            opt = self.page.locator(f"[role='menuitem']:has-text('{cycle_name}')").first
+            if opt.is_visible():
+                opt.click()
+            else:
+                self.page.keyboard.press("Escape")
+        else:
+            select_elem = self.page.locator("select[name*='cycle'], select[name*='Cycle']").first
+            if select_elem.is_visible():
+                select_elem.select_option(label=cycle_name)
+        self.page.wait_for_timeout(400)
+
+    def set_recurring_dates(self, start_date: str = None, next_invoice_date: str = None):
+        """Set Start Date and Next Invoice Date for Recurring Billing (YYYY-MM-DD)."""
+        if start_date:
+            logger.info(f"Setting Recurring Start Date to: {start_date}")
+            start_inp = self.page.locator("div.chakra-tabs__tab-panels input[name='startDate']:visible, input[name='startDate']:visible").first
+            if start_inp.is_visible():
+                start_inp.fill(start_date)
+
+        if next_invoice_date:
+            logger.info(f"Setting Recurring Next Invoice Date to: {next_invoice_date}")
+            next_inp = self.page.locator("div.chakra-tabs__tab-panels input[name='nextInvoiceDate']:visible, input[name='nextInvoiceDate']:visible").first
+            if next_inp.is_visible():
+                next_inp.fill(next_invoice_date)
+        self.page.wait_for_timeout(400)
+
+        if next_invoice_date:
+            logger.info(f"Setting Next Invoice Date to: {next_invoice_date}")
+            next_inp = self.page.locator("input[name='nextInvoiceDate']").first
+            if next_inp.is_visible():
+                next_inp.fill(next_invoice_date)
+        self.page.wait_for_timeout(400)
+
+    def toggle_auto_generate_invoice(self, enable: bool = True):
+        """Toggle Auto-generate invoice switch/checkbox."""
+        logger.info(f"Setting auto-generate invoice to: {enable}")
+        checkbox = self.page.locator("input[type='checkbox']").first
+        if checkbox.is_visible():
+            is_checked = checkbox.is_checked()
+            if is_checked != enable:
+                checkbox.click()
+                self.page.wait_for_timeout(300)
+
+    def click_add_service(self):
+        """Click '+ Add Service' button in Billing Services section."""
+        logger.info("Clicking '+ Add Service' button...")
+        add_btn = self.page.locator("button:has-text('Add Service')").first
+        add_btn.wait_for(state="visible", timeout=5000)
+        add_btn.click()
+        self.page.wait_for_timeout(800)
+        self.page.locator("table:has-text('Unit Price') tbody tr").first.wait_for(
+            state="visible", timeout=5000
+        )
+        logger.info("Service row added.")
+
+    def get_service_table_rows(self):
+        """Return locator for all service rows in the billing services table."""
+        return self.page.locator("table:has-text('Unit Price'), table:has-text('Qty')").first.locator("tbody tr")
+
+    def fill_service_row(
+        self,
+        row_index: int = 0,
+        service_option_index: int = 1,
+        description: str = "",
+        qty: str = "1",
+        unit_price: str = "100",
+        gst_percent: str = "18",
+    ):
+        """
+        Fill a specific service row in the Billing Services table.
+        - row_index: 0-based row index
+        - service_option_index: dropdown option index (default 1)
+        - description: optional text
+        - qty: item quantity
+        - unit_price: unit price
+        - gst_percent: '0', '5', '12', '18', '28'
+        """
+        logger.info(
+            f"Filling service row #{row_index + 1}: Qty='{qty}', Price='{unit_price}', GST='{gst_percent}%'"
+        )
+        rows = self.get_service_table_rows()
+        row = rows.nth(row_index)
+        row.wait_for(state="visible", timeout=5000)
+
+        # Service select
+        service_select = row.locator("select").first
+        opts = service_select.locator("option").all()
+        if len(opts) > service_option_index:
+            service_select.select_option(index=service_option_index)
+
+        # Description
+        if description:
+            desc_input = row.locator("textarea, input[type='text']").first
+            if desc_input.is_visible():
+                desc_input.fill(description)
+
+        # Qty (Col 3)
+        qty_input = row.locator("input[type='number']").first
+        qty_input.fill(str(qty))
+
+        # Unit Price (Col 4)
+        price_input = row.locator("input[type='number']").nth(1)
+        price_input.fill(str(unit_price))
+
+        # GST % (Col 5)
+        if gst_percent is not None:
+            gst_select = row.locator("select").nth(1)
+            if gst_select.is_visible():
+                gst_select.select_option(str(gst_percent))
+
+        self.page.wait_for_timeout(600)
+
+    def get_service_row_data(self, row_index: int = 0) -> dict:
+        """Extract data from a service row."""
+        rows = self.get_service_table_rows()
+        row = rows.nth(row_index)
+        row.wait_for(state="visible", timeout=5000)
+
+        service_val = row.locator("select").first.input_value()
+        desc_val = row.locator("textarea, input[type='text']").first.input_value()
+        qty_val = row.locator("input[type='number']").first.input_value()
+        price_val = row.locator("input[type='number']").nth(1).input_value()
+        gst_val = row.locator("select").nth(1).input_value()
+        total_text = row.locator("td:nth-child(7)").inner_text().strip()
+
+        return {
+            "service": service_val,
+            "description": desc_val,
+            "qty": qty_val,
+            "unit_price": price_val,
+            "gst_percent": gst_val,
+            "total_amount": total_text,
+        }
+
+    def remove_service_row(self, row_index: int = 0):
+        """Remove a service row by clicking the trash/remove icon in the last cell."""
+        rows = self.get_service_table_rows()
+        row = rows.nth(row_index)
+        del_btn = row.locator(
+            "td:last-child button, td:last-child [role='button'], button[aria-label*='delete' i], button[aria-label*='remove' i], button[aria-label*='trash' i]"
+        ).last
+        if del_btn.count() == 0 or not del_btn.is_visible():
+            del_btn = row.locator("button").last
+        del_btn.click()
+        self.page.wait_for_timeout(1000)
+
+    def get_invoice_summary(self) -> dict:
+        """Extract Subtotal, Total GST, and Total Amount from Billing / Invoice Summary."""
+        panels = self.page.locator("div.chakra-tabs__tab-panels").first
+        subtotal_elem = panels.locator("text=Subtotal").locator("..").first
+        gst_elem = panels.locator("text=Total GST").locator("..").first
+        total_elem = panels.locator("text=Total Amount").locator("..").first
+
+        sub_text = subtotal_elem.inner_text().replace("Subtotal", "").strip() if subtotal_elem.is_visible() else ""
+        gst_text = gst_elem.inner_text().replace("Total GST", "").strip() if gst_elem.is_visible() else ""
+        total_text = total_elem.inner_text().replace("Total Amount", "").strip() if total_elem.is_visible() else ""
+
+        return {
+            "subtotal": sub_text,
+            "total_gst": gst_text,
+            "total_amount": total_text,
+        }
+
+    def verify_qty_price_input_constraints(self, row_index: int = 0) -> dict:
+        """
+        Verify validation attributes and constraints on Qty and Unit Price inputs:
+        - min, max, maxlength
+        - Returns constraint metadata and any active error element text.
+        """
+        rows = self.get_service_table_rows()
+        row = rows.nth(row_index)
+        qty_input = row.locator("input[type='number']").first
+        price_input = row.locator("input[type='number']").nth(1)
+
+        qty_meta = {
+            "min": qty_input.get_attribute("min"),
+            "max": qty_input.get_attribute("max"),
+            "maxlength": qty_input.get_attribute("maxlength"),
+            "aria_invalid": qty_input.get_attribute("aria-invalid"),
+        }
+        price_meta = {
+            "min": price_input.get_attribute("min"),
+            "max": price_input.get_attribute("max"),
+            "maxlength": price_input.get_attribute("maxlength"),
+            "aria_invalid": price_input.get_attribute("aria-invalid"),
+        }
+
+        # Check for active errors in the row or form
+        active_errors = [
+            e.inner_text().strip()
+            for e in self.page.locator(".chakra-form__error-message, [aria-invalid='true'], [role='alert'], .chakra-alert").all()
+            if e.is_visible()
+        ]
+
+        return {
+            "qty_constraints": qty_meta,
+            "price_constraints": price_meta,
+            "active_errors": active_errors,
+        }
+
+    def click_create_plan(self, generate_invoice_now: bool = False):
+        """Click 'Create Plan' or 'Create Plan & Generate Invoice Now'."""
+        if generate_invoice_now:
+            btn = self.page.locator("button:has-text('Create Plan & Generate Invoice Now')").first
+        else:
+            btn = self.page.locator("button[type='submit']:has-text('Create Plan'), button:has-text('Create Plan'):not(:has-text('Generate'))").first
+        btn.click()
+        self.page.wait_for_timeout(1500)

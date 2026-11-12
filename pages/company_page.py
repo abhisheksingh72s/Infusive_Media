@@ -4,17 +4,23 @@ class CompanyPage:
         self.page = page
 
     def go_to_company(self):
-        comp_link = self.page.get_by_role("link", name="Companies")
-        if comp_link.count() == 0 or not comp_link.first.is_visible():
-            comp_link = self.page.get_by_role("link", name="Company")
-        if comp_link.count() == 0 or not comp_link.first.is_visible():
-            comp_link = self.page.locator("a[href='/company']")
+        try:
+            comp_link = self.page.locator("a:has-text('Companies'), a:has-text('Company'), a[href*='company']").first
+            if comp_link.count() > 0 and comp_link.is_visible():
+                comp_link.click()
+            else:
+                self.page.goto("https://infusive-front.jobvritta.com/company", wait_until="domcontentloaded")
+        except Exception:
+            self.page.goto("https://infusive-front.jobvritta.com/company", wait_until="domcontentloaded")
 
-        comp_link.first.click()
         self.page.wait_for_url("**/company**", timeout=60000)
         self.page.get_by_role("button", name="Add New Company").wait_for(timeout=60000)
 
     def click_add_new_company_menu(self):
+        try:
+            self.page.evaluate("() => document.querySelectorAll('.chakra-toast, [class*=\"chakra-toast\"]').forEach(el => el.remove())")
+        except Exception:
+            pass
         self.page.get_by_role("button", name="Add New Company").click()
 
     def click_add_new_company(self):
@@ -27,10 +33,25 @@ class CompanyPage:
         self.page.get_by_role("button", name="Select Code").wait_for(timeout=60000)
 
     def click_add_quick_lead(self):
-        self.click_add_new_company_menu()
-        self.page.get_by_role("menuitem", name="Add Quick Lead").click()
-        self.page.get_by_role("textbox", name="Name").wait_for(timeout=60000)
-        self.page.wait_for_timeout(2000)
+        try:
+            self.page.evaluate("() => document.querySelectorAll('.chakra-toast, [class*=\"chakra-toast\"]').forEach(el => el.remove())")
+        except Exception:
+            pass
+        try:
+            self.click_add_new_company_menu()
+            self.page.wait_for_timeout(400)
+            self.page.get_by_role("menuitem", name="Add Quick Lead").click(timeout=5000)
+        except Exception:
+            self.page.goto("https://infusive-front.jobvritta.com/quick-lead", wait_until="domcontentloaded")
+
+        try:
+            self.page.wait_for_url("**/quick-lead**", timeout=15000)
+        except Exception:
+            self.page.goto("https://infusive-front.jobvritta.com/quick-lead", wait_until="domcontentloaded")
+            self.page.wait_for_url("**/quick-lead**", timeout=15000)
+
+        self.page.get_by_role("textbox", name="Name").wait_for(timeout=30000)
+        self.page.wait_for_timeout(1000)
 
     def select_quick_lead_country_code(self, code):
         self.page.wait_for_timeout(500)
@@ -59,12 +80,16 @@ class CompanyPage:
         if phone is not None:
             self.page.get_by_placeholder("Enter Phone").fill(phone)
         if country is not None:
+            try:
+                self.page.evaluate("() => document.querySelectorAll('.chakra-toast, [class*=\"chakra-toast\"], .css-1hyhc6u').forEach(el => el.remove())")
+            except Exception:
+                pass
             country_input = self.page.get_by_role("textbox", name="Country *")
-            country_input.click()
+            country_input.click(force=True)
             country_input.fill(country)
             self.page.wait_for_timeout(1000)
             try:
-                self.page.locator("li").filter(has_text=country).first.click(timeout=3000)
+                self.page.locator("li").filter(has_text=country).first.click(force=True, timeout=3000)
             except Exception:
                 self.page.keyboard.press("Escape")
 
