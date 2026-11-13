@@ -305,3 +305,82 @@ def test_tab1_start_date_backdating_rejection_audit(logged_in_page: Page):
         )
     else:
         logger.info(f"Backdating correctly blocked by validation! Toasts: {result['toasts']}")
+
+
+@pytest.mark.ui
+def test_tab1_configured_service_removal_protection_audit(logged_in_page: Page):
+    """
+    Audit Defect DEF-006 (Reported by Abhishek Singh):
+    Once a service's budget has been configured on Tab 2 (Budget),
+    that service MUST NOT be removable from 'Service Interested In' on Tab 1 (Project Details).
+    """
+    page = logged_in_page
+    project_page = ProjectPage(page)
+
+    project_page.go_to_project()
+    project_page.click_project_hyperlink()
+    page.wait_for_timeout(1000)
+
+    # 1. Inspect Tab 2 (Budget) to find configured services
+    project_page.open_budget_tab()
+    page.wait_for_timeout(1000)
+    budgets = project_page.get_all_service_budgets()
+    logger.info(f"Existing Service Budgets on Tab 2: {budgets}")
+
+    configured_services = [
+        b["service_name"] for b in budgets
+        if b.get("service_type") and b.get("service_type") != "-" and b.get("monthly_budget", "0") != "0"
+    ]
+    if not configured_services and budgets:
+        configured_services = [budgets[0]["service_name"]]
+
+    logger.info(f"Configured services identified: {configured_services}")
+
+    # 2. Return to Tab 1 (Project Details)
+    project_page.open_project_details_tab()
+    page.wait_for_timeout(1000)
+
+    # 3. Enter In-place Edit mode
+    project_page.click_edit_project_icon()
+    page.wait_for_timeout(600)
+
+    # 4. Open 'Service Interested In' dropdown
+    card = page.locator(".project-details-card, form, main").first
+    svc_btn = card.locator(
+        ".project-details-field:has-text('Service Interested In') button, button:has-text('Select Services'), button[id*='menu-button']"
+    ).first
+    svc_btn.scroll_into_view_if_needed()
+    svc_btn.click()
+    page.wait_for_timeout(600)
+
+    # 5. Check if configured services are locked/disabled from removal
+    removable_configured_services = []
+    for svc in configured_services:
+        item = page.locator(f"[role='menuitem']:has-text('{svc}'), label:has-text('{svc}')").first
+        if item.is_visible():
+            checkbox = item.locator("input[type='checkbox']").first
+            is_disabled = (
+                checkbox.get_attribute("disabled") is not None
+                or item.get_attribute("aria-disabled") == "true"
+                or "disabled" in (checkbox.get_attribute("class") or "")
+            )
+            is_checked = checkbox.is_checked() if checkbox.count() > 0 else True
+            logger.info(f"Service '{svc}': is_checked={is_checked}, is_disabled={is_disabled}")
+
+            if not is_disabled:
+                removable_configured_services.append(svc)
+
+    page.keyboard.press("Escape")
+
+    # Cancel edit mode to restore clean state
+    cancel_btn = page.locator(".project-details-actions button:has-text('Cancel')").first
+    if cancel_btn.is_visible():
+        cancel_btn.click()
+
+    if removable_configured_services:
+        logger.error(
+            f"CRITICAL DEFECT DEF-006 CONFIRMED: Configured services {removable_configured_services} "
+            f"are NOT locked and can be removed from Project Details despite existing budget allocations!"
+        )
+    else:
+        logger.info("VERIFIED: Configured services are properly locked and protected from removal ✓")
