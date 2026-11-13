@@ -547,4 +547,72 @@ def test_duplicate_billing_plan_confirmation_modal(logged_in_page: Page):
             logger.info("Duplicate modal 'Cancel' verified.")
 
 
+@pytest.mark.ui
+@pytest.mark.parametrize(
+    "plan_scenario,unit_price,expected_modal",
+    [
+        ("different_amount_tier1", "30", False),
+        ("different_amount_tier2", "45", False),
+    ],
+    ids=["different_amount_$30", "different_amount_$45"],
+)
+def test_same_date_different_amount_billing_plan_parameterized(
+    logged_in_page: Page,
+    plan_scenario: str,
+    unit_price: str,
+    expected_modal: bool,
+):
+    """
+    Parameterized Test: Same Billing Start Date, Different Amounts.
+    Validates that creating a new plan on the same start date but with a DIFFERENT amount
+    does NOT trigger the 'Similar plan already exists' confirmation modal and saves directly.
+    """
+    page = logged_in_page
+    project_page = ProjectPage(page)
+
+    # 1. Open Project Details
+    project_page.go_to_project()
+    project_page.click_project_hyperlink()
+    page.wait_for_timeout(1000)
+
+    # 2. Open Tab 5: Billing & Invoices
+    project_page.open_billing_invoices_tab()
+    page.wait_for_timeout(1000)
+
+    # 3. Setup recurring plan with today's date
+    project_page.select_billing_type("Recurring")
+    project_page.select_billing_cycle("Monthly")
+
+    from datetime import date
+    today_str = date.today().strftime("%Y-%m-%d")
+    project_page.set_recurring_dates(start_date=today_str, next_invoice_date=today_str)
+
+    # Fill service row with parameterized different amount
+    rows = project_page.get_service_table_rows()
+    if rows.count() == 0:
+        project_page.click_add_service()
+
+    project_page.fill_service_row(
+        row_index=0,
+        qty="1",
+        unit_price=unit_price,
+        gst_percent="0",
+    )
+
+    # 4. Submit plan without auto-confirming duplicate modal
+    logger.info(f"Submitting parameterized plan with date={today_str}, unit_price={unit_price}...")
+    res = project_page.click_create_plan(auto_confirm_duplicate=False)
+    logger.info(f"Submission result for unit_price={unit_price}: {res}")
+
+    # 5. Assert confirmation modal matches expectation
+    if expected_modal:
+        assert res["duplicate_modal_detected"], f"Expected duplicate modal for amount {unit_price}, but modal did not appear!"
+        project_page.cancel_duplicate_plan_modal()
+    else:
+        assert not res["duplicate_modal_detected"], (
+            f"Vulnerability / Unexpected Modal: Similar plan modal should NOT appear for different amount ${unit_price} on {today_str}!"
+        )
+        logger.info(f"VERIFIED: Plan with different amount ${unit_price} on {today_str} was allowed directly without confirmation modal ✓")
+
+
 
