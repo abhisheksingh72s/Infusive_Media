@@ -227,7 +227,12 @@ class ProjectPage:
                 inp = field.locator("input").first
                 if inp.count() > 0 and inp.is_visible():
                     return inp.input_value()
-                disp = field.locator(".project-service-display, p").first
+                # Check for Chakra tags/chips first (multi-select view mode)
+                tags = field.locator(".chakra-tag, .chakra-tag__label, .chakra-badge").all_inner_texts()
+                valid_tags = [t.strip() for t in tags if t.strip()]
+                if valid_tags:
+                    return ", ".join(valid_tags)
+                disp = field.locator(".project-service-display, p, span").first
                 return disp.inner_text().strip() if disp.count() > 0 and disp.is_visible() else ""
 
         return {
