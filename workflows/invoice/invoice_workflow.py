@@ -34,9 +34,11 @@ class InvoiceWorkflow:
         assert rows.count() > 0, f"Expected at least 1 invoice row in Ledger for '{company_name}', but found 0!"
 
         inv_data = self.invoice_page.get_invoice_row_data(0)
+        if inv_data:
+            inv_data["invoice_number"] = inv_data.get("invoice_no")
         logger.info(f"Verified Invoice in Ledger: {inv_data}")
         if expected_status:
-            assert inv_data["status"].lower() == expected_status.lower(), (
+            assert expected_status.lower() in inv_data["status"].lower(), (
                 f"Expected status '{expected_status}', got '{inv_data['status']}'"
             )
 

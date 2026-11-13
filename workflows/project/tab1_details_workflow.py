@@ -71,14 +71,44 @@ class ProjectDetailsWorkflow:
 
         # 6. Save
         self.project_page.save_project()
-        self.page.wait_for_timeout(2000)
+        logger.info("Clicked Save on Project Details. Waiting for toast...")
 
-        # 7. Verification of saved data in view mode
+        # Wait for Save toast
+        try:
+            toast = self.page.locator(".chakra-toast, [role='status'], [role='alert']").first
+            if toast.is_visible(timeout=5000):
+                toast_text = toast.inner_text().strip()
+                logger.info(f"Captured Project Details Save Toast: '{toast_text}'")
+                try:
+                    toast.wait_for(state="hidden", timeout=8000)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        self.page.wait_for_timeout(1000)
+
+        # Reload to ensure refreshed project state across tabs
+        logger.info("Reloading page to validate saved project details and refresh state...")
+        self.page.reload()
+        self.page.wait_for_timeout(1500)
+        self.project_page.open_project_details_tab()
+
+        # 7. Validate after save reflected
         form_data = self.project_page.get_project_details_form_data()
-        logger.info(f"Project Tab 1 Form Data after save: {form_data}")
+        logger.info(f"Project Tab 1 Form Data after save & refresh: {form_data}")
+        assert form_data["monthly_budget"] == str(monthly_budget), (
+            f"Expected Monthly Budget '{monthly_budget}', got: '{form_data['monthly_budget']}'"
+        )
+        assert form_data["duration"] == str(duration), (
+            f"Expected Duration '{duration}', got: '{form_data['duration']}'"
+        )
+        assert form_data["currency"] == currency, (
+            f"Expected Currency '{currency}', got: '{form_data['currency']}'"
+        )
         logger.info(
-            f"Project Tab 1 (Details) configured for '{company_name}' "
-            f"(Status: {status}, Currency: {currency}, Budget: {monthly_budget}, Duration: {duration})."
+            f"Project Tab 1 (Details) validated & reflected for '{company_name}' "
+            f"(Status: {status}, Currency: {currency}, Budget: {monthly_budget}, Duration: {duration}) ✓"
         )
         return form_data
 
