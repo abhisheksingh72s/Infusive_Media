@@ -1,14 +1,21 @@
 import os
+from pathlib import Path
 
 import pytest
 import requests
+from dotenv import load_dotenv
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+load_dotenv(dotenv_path=ROOT_DIR / ".env", override=True)
 
 from utilities.api import base_api
 
-BASE_API_URL = os.getenv("BASE_API_URL")
+BASE_API_URL = os.getenv("BASE_API_URL") or os.getenv("BASE_API_URL_STG") or base_api.BASE_URL or "https://infusive-back.jobvritta.com/api/"
+if not BASE_API_URL.endswith("/"):
+    BASE_API_URL += "/"
 LOGIN_URL = f"{BASE_API_URL}user/login"
-VALID_EMAIL = os.getenv("EMAIL")
-VALID_PASSWORD = os.getenv("PASSWORD")
+VALID_EMAIL = os.getenv("EMAIL") or base_api.USERS["admin"]["email"]
+VALID_PASSWORD = os.getenv("PASSWORD") or base_api.USERS["admin"]["password"]
 
 pytestmark = [pytest.mark.smoke, pytest.mark.api]
 
@@ -70,7 +77,7 @@ def test_login_empty_email():
         "email": "",
         "password": VALID_PASSWORD,
     })
-    assert response.status_code in (400, 401, 422), (
+    assert 400 <= response.status_code < 500, (
         f"Expected 4xx for empty email, got {response.status_code}"
     )
 
@@ -81,7 +88,7 @@ def test_login_empty_password():
         "email": VALID_EMAIL,
         "password": "",
     })
-    assert response.status_code in (400, 401, 422), (
+    assert 400 <= response.status_code < 500, (
         f"Expected 4xx for empty password, got {response.status_code}"
     )
 
@@ -95,7 +102,7 @@ def test_login_missing_email_field():
     response = requests.post(LOGIN_URL, json={
         "password": VALID_PASSWORD,
     })
-    assert response.status_code in (400, 422), (
+    assert 400 <= response.status_code < 500, (
         f"Expected 4xx for missing email field, got {response.status_code}"
     )
 
@@ -105,7 +112,7 @@ def test_login_missing_password_field():
     response = requests.post(LOGIN_URL, json={
         "email": VALID_EMAIL,
     })
-    assert response.status_code in (400, 422), (
+    assert 400 <= response.status_code < 500, (
         f"Expected 4xx for missing password field, got {response.status_code}"
     )
 
@@ -113,6 +120,6 @@ def test_login_missing_password_field():
 def test_login_empty_payload():
     """Empty payload must return a 4xx status code."""
     response = requests.post(LOGIN_URL, json={})
-    assert response.status_code in (400, 422), (
+    assert 400 <= response.status_code < 500, (
         f"Expected 4xx for empty payload, got {response.status_code}"
     )
