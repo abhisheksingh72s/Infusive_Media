@@ -1,0 +1,42 @@
+# Python Virtual Environments & Dependencies
+venv/
+ivenv/
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local Secrets & Credentials
+.env
+.env.*
+token.json
+client_secret.json
+client_sec.json
+core/auth/credentials/
+
+# Git & IDE
+.git/
+.github/
+.gitignore
+.vscode/
+.idea/
+
+# Local Test Reports, Screenshots & Caches
+.pytest_cache/
+reports/
+screenshots/
+test-results/
+playwright-report/
+allure-results/
+logs/
+downloads/
+invoice_mockups/
+mockups/
+
+# Manuals, Word Docs & PDFs
+*.docx
+*.doc
+*.pdf
+*.md
+~$*

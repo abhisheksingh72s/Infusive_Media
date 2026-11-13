@@ -10,12 +10,13 @@ LOGIN_URL = f"{BASE_API_URL}user/login"
 VALID_EMAIL = os.getenv("EMAIL")
 VALID_PASSWORD = os.getenv("PASSWORD")
 
+pytestmark = [pytest.mark.smoke, pytest.mark.api]
+
 
 # ---------------------------------------------------------------------------
 # Happy Path
 # ---------------------------------------------------------------------------
 
-@pytest.mark.smoke
 def test_login_valid_credentials():
     """Valid admin credentials must return a non-empty token."""
     token = base_api.get_token(user="admin")
