@@ -1102,11 +1102,35 @@ class ProjectPage:
             self.page.wait_for_timeout(400)
 
     def select_billing_cycle(self, cycle_name: str = "Monthly"):
-        """Select Billing Cycle: Monthly, Quarterly, Semi-Annually, Annually, etc."""
+        """Select Billing Cycle: Monthly, Quarterly, Weekly, etc."""
         logger.info(f"Selecting billing cycle: '{cycle_name}'...")
-        # Menu button or select
-        cycle_menu_btn = self.page.locator("div.chakra-tabs__tab-panels button:has-text('Monthly'), div.chakra-tabs__tab-panels button:has-text('Cycle')").first
-        if cycle_menu_btn.is_visible():
+        # 1. Native select
+        cycle_select = self.page.locator(
+            "div:has(> label:has-text('Billing Cycle')) select, "
+            ".chakra-form-control:has-text('Billing Cycle') select, "
+            "select[name*='cycle'], select[name*='Cycle']"
+        ).first
+        if cycle_select.count() > 0 and cycle_select.is_visible():
+            opts = cycle_select.locator("option").all()
+            opts_info = [(o.get_attribute("value"), o.inner_text().strip()) for o in opts]
+            logger.info(f"Available Billing Cycle select options: {opts_info}")
+            matched = False
+            for val, text in opts_info:
+                if cycle_name.lower() in text.lower():
+                    cycle_select.select_option(value=val if val else text)
+                    logger.info(f"Selected Billing Cycle option: '{text}' (val={val})")
+                    matched = True
+                    break
+            if not matched and len(opts) > 1:
+                cycle_select.select_option(index=1)
+            self.page.wait_for_timeout(400)
+            return
+
+        # 2. Menu button
+        cycle_menu_btn = self.page.locator(
+            "div.chakra-tabs__tab-panels button:has-text('Monthly'), div.chakra-tabs__tab-panels button:has-text('Cycle')"
+        ).first
+        if cycle_menu_btn.count() > 0 and cycle_menu_btn.is_visible():
             cycle_menu_btn.click()
             self.page.wait_for_timeout(300)
             opt = self.page.locator(f"[role='menuitem']:has-text('{cycle_name}')").first
@@ -1114,32 +1138,35 @@ class ProjectPage:
                 opt.click()
             else:
                 self.page.keyboard.press("Escape")
-        else:
-            select_elem = self.page.locator("select[name*='cycle'], select[name*='Cycle']").first
-            if select_elem.is_visible():
-                select_elem.select_option(label=cycle_name)
         self.page.wait_for_timeout(400)
 
     def set_recurring_dates(self, start_date: str = None, next_invoice_date: str = None):
         """Set Start Date and Next Invoice Date for Recurring Billing (YYYY-MM-DD)."""
-        if start_date:
-            logger.info(f"Setting Recurring Start Date to: {start_date}")
-            start_inp = self.page.locator("div.chakra-tabs__tab-panels input[name='startDate']:visible, input[name='startDate']:visible").first
-            if start_inp.is_visible():
-                start_inp.fill(start_date)
+        today_iso = datetime.datetime.now().strftime("%Y-%m-%d")
+        effective_start = start_date or today_iso
+        effective_next = next_invoice_date or today_iso
 
-        if next_invoice_date:
-            logger.info(f"Setting Recurring Next Invoice Date to: {next_invoice_date}")
-            next_inp = self.page.locator("div.chakra-tabs__tab-panels input[name='nextInvoiceDate']:visible, input[name='nextInvoiceDate']:visible").first
-            if next_inp.is_visible():
-                next_inp.fill(next_invoice_date)
-        self.page.wait_for_timeout(400)
+        logger.info(f"Setting Recurring Dates: Start={effective_start}, NextInvoice={effective_next}")
 
-        if next_invoice_date:
-            logger.info(f"Setting Next Invoice Date to: {next_invoice_date}")
-            next_inp = self.page.locator("input[name='nextInvoiceDate']").first
-            if next_inp.is_visible():
-                next_inp.fill(next_invoice_date)
+        # Start Date input
+        start_inp = self.page.locator(
+            "div:has(> label:has-text('Start Date')) input, "
+            "input[name='startDate']:visible, "
+            "input[type='date']:visible"
+        ).first
+        if start_inp.count() > 0 and start_inp.is_visible():
+            start_inp.fill(effective_start)
+
+        # Next Invoice Date input
+        next_inp = self.page.locator(
+            "div:has(> label:has-text('Next Invoice Date')) input, "
+            "input[name='nextInvoiceDate']:visible"
+        ).first
+        if next_inp.count() == 0 or not next_inp.is_visible():
+            next_inp = self.page.locator("input[type='date']:visible").nth(1)
+        if next_inp.count() > 0 and next_inp.is_visible():
+            next_inp.fill(effective_next)
+
         self.page.wait_for_timeout(400)
 
     def toggle_auto_generate_invoice(self, enable: bool = True):
@@ -1171,6 +1198,7 @@ class ProjectPage:
     def fill_service_row(
         self,
         row_index: int = 0,
+        service_name: str = "",
         service_option_index: int = 1,
         description: str = "",
         qty: str = "1",
@@ -1179,25 +1207,47 @@ class ProjectPage:
     ):
         """
         Fill a specific service row in the Billing Services table.
-        - row_index: 0-based row index
-        - service_option_index: dropdown option index (default 1)
-        - description: optional text
-        - qty: item quantity
-        - unit_price: unit price
-        - gst_percent: '0', '5', '12', '18', '28'
         """
         logger.info(
-            f"Filling service row #{row_index + 1}: Qty='{qty}', Price='{unit_price}', GST='{gst_percent}%'"
+            f"Filling service row #{row_index + 1}: Service='{service_name}', Qty='{qty}', Price='{unit_price}', GST='{gst_percent}%'"
         )
         rows = self.get_service_table_rows()
         row = rows.nth(row_index)
         row.wait_for(state="visible", timeout=5000)
 
-        # Service select
+        # Service select - wait for options to populate asynchronously
         service_select = row.locator("select").first
+        for _ in range(20):
+            opts = service_select.locator("option").all()
+            if len(opts) > 1:
+                break
+            self.page.wait_for_timeout(500)
+
         opts = service_select.locator("option").all()
-        if len(opts) > service_option_index:
-            service_select.select_option(index=service_option_index)
+        opts_info = [(o.get_attribute("value"), o.inner_text().strip()) for o in opts]
+        logger.info(f"Available services in row select: {opts_info}")
+
+        if len(opts) > 1:
+            matched = False
+            if service_name:
+                for val, text in opts_info:
+                    if service_name.lower() in text.lower():
+                        try:
+                            if val:
+                                service_select.select_option(value=val)
+                            else:
+                                service_select.select_option(label=text)
+                        except Exception:
+                            service_select.select_option(label=text)
+                        logger.info(f"Selected service '{text}' (val={val}) by name match.")
+                        matched = True
+                        break
+            if not matched:
+                service_select.select_option(index=1)
+                selected_text = opts_info[1][1] if len(opts_info) > 1 else "index 1"
+                logger.info(f"Selected fallback service: '{selected_text}'")
+        else:
+            raise AssertionError(f"No service options available in dropdown! Dropdown only has: {opts_info}")
 
         # Description
         if description:

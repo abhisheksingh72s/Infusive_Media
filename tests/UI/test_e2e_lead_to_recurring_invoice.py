@@ -97,10 +97,10 @@ def test_e2e_lead_won_to_recurring_invoice_chain(page: Page):
     # Phase 5: Project Tab 5 (Billing & Invoices) Recurring Plan
     # -------------------------------------------------------------------------
     plan = tab5_flow.setup_recurring_billing_plan(
-        cycle="Weekly",
+        cycle="Monthly",
         currency="USD",
         unit_price="500",
-        generate_invoice_now=False,
+        generate_invoice_now=True,
     )
     page.screenshot(path=str(shots_dir / "phase5_tab5_plan_created.png"))
 
@@ -108,6 +108,7 @@ def test_e2e_lead_won_to_recurring_invoice_chain(page: Page):
     # Phase 6: Scheduler Trigger
     # -------------------------------------------------------------------------
     api_result = scheduler_flow.trigger_scheduler_job(
+        project_id=plan.get("project_id"),
         config_id=plan.get("config_id"),
         date_str=plan.get("today_str"),
     )

@@ -38,6 +38,10 @@ class ProjectBillingWorkflow:
         effective_next = next_invoice_date or today_str
 
         logger.info(f"Setting up Tab 5 Recurring Plan (Cycle: {cycle}, Currency: {currency}, Next Date: {effective_next}, GenerateNow: {generate_invoice_now})...")
+        # Ensure fresh project data and budget state from Tab 1 & Tab 2 saves
+        logger.info("Reloading page to synchronize project duration and service budget into Tab 5...")
+        self.page.reload()
+        self.page.wait_for_timeout(1500)
         self.project_page.open_billing_invoices_tab()
         self.page.wait_for_timeout(1000)
 
@@ -51,6 +55,7 @@ class ProjectBillingWorkflow:
         self.project_page.click_add_service()
         self.project_page.fill_service_row(
             row_index=0,
+            service_name="Meta Ads",
             service_option_index=1,
             description=f"{cycle} Retainer Service",
             qty=qty,
@@ -59,11 +64,18 @@ class ProjectBillingWorkflow:
         )
 
         captured_config_id = None
+        captured_project_id = None
 
         def on_response(response):
-            nonlocal captured_config_id
+            nonlocal captured_config_id, captured_project_id
             if response.request.method in ("POST", "PUT"):
                 try:
+                    import re
+                    match = re.search(r"/api/projects/(\d+)/billing", response.url)
+                    if match:
+                        captured_project_id = int(match.group(1))
+                        logger.info(f"Captured Project ID: {captured_project_id}")
+
                     b = response.json()
                     logger.info(f"API Response [{response.status}] from {response.url}: {b}")
                     if isinstance(b, dict):
@@ -85,10 +97,21 @@ class ProjectBillingWorkflow:
         # Click Create Plan
         logger.info(f"Submitting plan (generate_invoice_now={generate_invoice_now})...")
         self.project_page.click_create_plan(generate_invoice_now=generate_invoice_now)
-        self.page.wait_for_timeout(2500)
+
+        # Capture toast notification
+        try:
+            toast = self.page.locator(".chakra-toast, [role='status'], [role='alert']").first
+            if toast.is_visible(timeout=5000):
+                toast_msg = toast.inner_text().strip()
+                logger.info(f"Captured Tab 5 Plan Submission Toast: '{toast_msg}'")
+        except Exception:
+            pass
+
+        self.page.wait_for_timeout(2000)
 
         return {
             "config_id": captured_config_id,
+            "project_id": captured_project_id,
             "today_str": today_str,
             "cycle": cycle,
             "currency": currency,

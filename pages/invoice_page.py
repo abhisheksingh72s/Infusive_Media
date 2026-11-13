@@ -160,6 +160,20 @@ class InvoicePage:
         cells = [td.inner_text().strip().replace("\n", " ") for td in row.locator("td").all()]
         if len(cells) < 13:
             return {}
+        status_td = row.locator("td").nth(12)
+        select_loc = status_td.locator("select")
+        if select_loc.count() > 0:
+            try:
+                selected_opt = select_loc.locator("option:checked")
+                if selected_opt.count() > 0:
+                    status_val = selected_opt.first.inner_text().strip()
+                else:
+                    status_val = select_loc.first.input_value()
+            except Exception:
+                status_val = select_loc.first.input_value()
+        else:
+            status_val = cells[12]
+
         return {
             "s_no": cells[0],
             "invoice_no": cells[1],
@@ -173,7 +187,7 @@ class InvoicePage:
             "amount_usd": cells[9],
             "paid_usd": cells[10],
             "outstanding_usd": cells[11],
-            "status": cells[12],
+            "status": status_val,
             "credit_note": cells[13] if len(cells) > 13 else "",
             "verification": cells[14] if len(cells) > 14 else "",
             "edit": cells[15] if len(cells) > 15 else "",

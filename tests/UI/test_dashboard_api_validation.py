@@ -1,6 +1,7 @@
 import os
 import pytest
 import logging
+from datetime import datetime
 from pages.dashboard_page import DashboardPage
 from utilities.api.dashboard_api_client import DashboardApiClient
 from utilities.api.dashboard_validator import DashboardValidator
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.mark.ui
-@pytest.mark.smoke
+@pytest.mark.regression
 @pytest.mark.login_as("Admin@infusive.com")
 def test_full_dashboard_cards_charts_tables_api_validation(logged_in_page):
     """
@@ -36,9 +37,14 @@ def test_full_dashboard_cards_charts_tables_api_validation(logged_in_page):
     # ---------------------------------------------------------------------------
     qa.log_step(1, total_steps, "Fetching ALL Dashboard Backend API payloads...", "PASS")
     
-    monthly_api_data = api_client.fetch_monthly_leads_data(year=2026)
+    now = datetime.now()
+    current_year = now.year
+    current_month = now.month
+    current_month_abbr = now.strftime("%b")
+
+    monthly_api_data = api_client.fetch_monthly_leads_data(year=current_year)
     summary_api_data = api_client.fetch_dashboard_summary()
-    lead_gen_api_data = api_client.fetch_lead_generation_dashboard(year=2026, month=9)
+    lead_gen_api_data = api_client.fetch_lead_generation_dashboard(year=current_year, month=current_month)
     today_activities_api = api_client.fetch_today_activities()
 
     qa.log_step(1, total_steps, "Successfully fetched data from 4 Dashboard Backend APIs!", "PASS")
@@ -53,7 +59,7 @@ def test_full_dashboard_cards_charts_tables_api_validation(logged_in_page):
     ui_summary_cards = dashboard_page.get_all_summary_cards()
     ui_monthly_months = dashboard_page.get_x_axis_labels()
     
-    dashboard_page.hover_bar_by_month("Sep")
+    dashboard_page.hover_bar_by_month(current_month_abbr)
     tooltip_text = dashboard_page.get_tooltip_text()
 
     ui_weekly_table = dashboard_page.get_weekly_breakdown_table()

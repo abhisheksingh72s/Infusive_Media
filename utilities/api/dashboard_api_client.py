@@ -1,5 +1,6 @@
 import logging
 import requests
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 from utilities.api import base_api
 
@@ -21,8 +22,9 @@ class DashboardApiClient:
             "Accept": "application/json"
         }
 
-    def fetch_monthly_leads_data(self, year: int = 2026) -> List[Dict[str, Any]]:
+    def fetch_monthly_leads_data(self, year: Optional[int] = None) -> List[Dict[str, Any]]:
         """Fetch monthly lead matrix data from /api/Dashboard/leadByMonth?year={year}."""
+        year = year or datetime.now().year
         base_url = base_api.BASE_URL.rstrip("/")
         url = f"{base_url}/Dashboard/leadByMonth?year={year}"
         headers = self.get_headers()
@@ -47,8 +49,11 @@ class DashboardApiClient:
         logger.info("Successfully fetched dashboard summary from API")
         return data
 
-    def fetch_lead_generation_dashboard(self, year: int = 2026, month: int = 9) -> Dict[str, Any]:
+    def fetch_lead_generation_dashboard(self, year: Optional[int] = None, month: Optional[int] = None) -> Dict[str, Any]:
         """Fetch weekly breakdown matrix from /api/Dashboard/LeadGenerationDashboard?year={year}&month={month}."""
+        now = datetime.now()
+        year = year or now.year
+        month = month or now.month
         base_url = base_api.BASE_URL.rstrip("/")
         url = f"{base_url}/Dashboard/LeadGenerationDashboard?year={year}&month={month}"
         headers = self.get_headers()

@@ -19,16 +19,43 @@ test-results/
 playwright-report/
 downloads/
 allure-results/
-*.pdf
-!testdata/static/**/*.pdf
 
-# Manuals, Flow Documentation & Images
+# Temporary & Diagnostic Tests
+*test_bug*
+test_bug_*
+
+# Documents, PDFs & Manuals
+*.pdf
 *.docx
-!testdata/static/**/*.docx
+*.doc
+*.odt
+*.rtf
+~$*
+*manual*
+*usermanual*
+*User_Manual*
+*UserManual*
+*specification*
+*Specification*
 *_flow.md
 *_user_manual.md
 *flow*.md
 *user_manual*.md
+
+# Images & Visual Mockups
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.webp
+*.ico
+*.bmp
+*.tiff
+screenshots/
+reports/
 module_wise_workflow_image/
+invoice_mockups/
+mockups/
 
 core/auth/credentials/
