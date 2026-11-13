@@ -180,14 +180,13 @@ jobs:
             echo "Generated .env from secrets."
           else
             echo "Using default STAGE environment configuration..."
-            cat << 'EOF' > .env
-BASE_URL=https://infusive-front.jobvritta.com/login
-BASE_API_URL=https://infusive-back.jobvritta.com/api/
-BASE_API_URL_STG=https://infusive-back.jobvritta.com/api/
-BASE_API_URL_PROD=https://crmapi.infusivemedia.com/api/
-EMAIL=Admin@infusive.com
-PASSWORD=123456
-EOF
+            printf '%s\n' \
+              "BASE_URL=https://infusive-front.jobvritta.com/login" \
+              "BASE_API_URL=https://infusive-back.jobvritta.com/api/" \
+              "BASE_API_URL_STG=https://infusive-back.jobvritta.com/api/" \
+              "BASE_API_URL_PROD=https://crmapi.infusivemedia.com/api/" \
+              "EMAIL=Admin@infusive.com" \
+              "PASSWORD=123456" > .env
           fi
 
       - name: Verify & Prepare Dependencies
