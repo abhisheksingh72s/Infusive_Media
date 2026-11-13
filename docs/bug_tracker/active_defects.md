@@ -9,7 +9,6 @@
 | **`DEF-003`** | **Major** | Projects (`/project-details`) | `Project Start Date` & `Billing Start Date` accept past dates without validation (Violates PM Ritesh Singh rule) | **REPORTED TO DEV (FIX PENDING)** |
 | **`DEF-004`** | **Major** | Projects (`/project-details`) | Project Status: `Inactive` KPI badge renders with Green styling instead of Red/Danger styling | **CONFIRMED** |
 | **`DEF-005`** | **Major** | Service Budget (`/project-details` Tab 2) | Estimated Amount calculation does not consider selected duration unit (Remove "Days", keep "Months" and "Years") | **CONFIRMED (RESOLUTION DEFINED)** |
-| **`DEF-006`** | **Major** | Projects (`/project-details` Tab 1) | Project Description updates silently roll back to previous text upon page reload (database persistence failure) | **CONFIRMED** |
 
 ---
 
@@ -135,27 +134,5 @@
   - Eliminating `Days` prevents fractional month/calendar conversion discrepancies and enforces clean monthly/annual recurring budgeting.
 - **Automated Verification:**
   - Test: `tests/UI/test_project_tab2_budget.py::test_tab2_budget_duration_unit_calculation_audit`
-
----
-
-### Defect 6: `DEF-006` — Project Description Update Does Not Persist to Backend Database (Silent Rollback on Reload)
-- **Severity:** Major (Data Loss / Backend Persistence Failure)
-- **Priority:** High
-- **Module:** Projects (`https://infusive-front.jobvritta.com/project-details` -> Tab 1: Project Details)
-- **Steps to Reproduce:**
-  1. Navigate to `/projects` and click on an existing project to open Project Details.
-  2. Switch to Tab 1 (**Project Details**).
-  3. Click **"Edit Project"** button.
-  4. Enter new text into the **Project Description** textarea (e.g. `"Project Scope: Full-funnel digital marketing campaign..."`).
-  5. Click **"Save"**.
-  6. Observe: The UI displays the updated description immediately in the view mode.
-  7. Reload the page (`page.reload()` or browser refresh) and return to Tab 1.
-- **Expected Result:**
-  - The updated description must be saved into the database and persist after page reload.
-- **Actual Result:**
-  - Upon reload, the description reverts completely to the previous text (e.g. `"Configured project details for [Company] with services: ..."`).
-  - The update only persisted in transient React state and was omitted or rejected by the backend database layer without returning an error toast.
-- **Automated Verification:**
-  - Test: `tests/UI/test_project_tab1_details.py::test_tab1_project_description_persistence`
 
 

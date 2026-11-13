@@ -361,8 +361,18 @@ class ProjectPage:
         save_btn = card.locator(".project-details-actions button:has-text('Save'), button:has-text('Save')").first
         if save_btn.count() > 0 and save_btn.is_visible():
             save_btn.click()
-            self.page.wait_for_timeout(2000)
-            logger.info("Save project details submitted successfully.")
+            # Wait for save toast or for edit mode to exit
+            try:
+                toast = self.page.locator(".chakra-toast, [role='status'], [role='alert']").first
+                toast.wait_for(state="visible", timeout=6000)
+                logger.info(f"Captured Save Toast: '{toast.inner_text().strip()}'")
+                toast.wait_for(state="hidden", timeout=8000)
+            except Exception:
+                try:
+                    save_btn.wait_for(state="hidden", timeout=5000)
+                except Exception:
+                    self.page.wait_for_timeout(2000)
+            logger.info("Save project details submitted and settled successfully.")
 
     def select_currency(self, currency_code: str = "USD"):
         """Select Currency in Edit Project mode (e.g. 'INR', 'USD', 'EUR')."""
