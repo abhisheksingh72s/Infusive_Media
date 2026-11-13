@@ -272,8 +272,6 @@ jobs:
           echo "🚀 Executing $SUITE_TITLE..."
           pytest $SUITE_FILES \
             -m "$SUITE_MARKER" \
-            --reruns 1 \
-            --reruns-delay 1 \
             --html=reports/report.html \
             --self-contained-html \
             --maxfail=1 \
