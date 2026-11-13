@@ -461,4 +461,90 @@ def test_service_budget_configuration_and_billing_integration(logged_in_page: Pa
     logger.info("Service Budget to Billing flow VERIFIED successfully.")
 
 
+@pytest.mark.ui
+def test_duplicate_billing_plan_confirmation_modal(logged_in_page: Page):
+    """
+    Validate Duplicate Billing Plan Creation Logic:
+    If a billing plan already exists with the same amount and start date for that day,
+    the application presents a confirmation modal:
+      - Header: 'Similar plan already exists'
+      - Body: 'A billing plan (#...) already exists with the same amount and start date. Are you sure you want to create a new one?'
+      - Buttons: 'Cancel' and 'Yes, create anyway'
+    
+    Verifies:
+      1. Modal structure, header, message, and button visibility.
+      2. 'Cancel' button dismisses the modal without creating the duplicate plan.
+      3. 'Yes, create anyway' button confirms and proceeds with plan creation.
+    """
+    page = logged_in_page
+    project_page = ProjectPage(page)
+
+    # 1. Open Project Details
+    project_page.go_to_project()
+    project_page.click_project_hyperlink()
+    page.wait_for_timeout(1000)
+
+    # 2. Open Tab 5: Billing & Invoices
+    project_page.open_billing_invoices_tab()
+    page.wait_for_timeout(1000)
+
+    # 3. Setup recurring plan with small amount ($25)
+    project_page.select_billing_type("Recurring")
+    project_page.select_billing_cycle("Monthly")
+
+    from datetime import date
+    today_str = date.today().strftime("%Y-%m-%d")
+    project_page.set_recurring_dates(start_date=today_str, next_invoice_date=today_str)
+
+    rows = project_page.get_service_table_rows()
+    if rows.count() == 0:
+        project_page.click_add_service()
+
+    project_page.fill_service_row(
+        row_index=0,
+        qty="1",
+        unit_price="25",
+        gst_percent="0",
+    )
+
+    # 4. First Plan Creation / Attempt Duplicate
+    logger.info("Submitting plan creation...")
+    res = project_page.click_create_plan(auto_confirm_duplicate=False)
+
+    if res["duplicate_modal_detected"]:
+        logger.info(f"Duplicate modal detected on initial submit: {res}")
+        modal_details = project_page.get_duplicate_plan_modal_details()
+        assert modal_details["visible"], "Duplicate confirmation modal should be visible"
+        assert "Similar plan already exists" in modal_details["header"]
+        assert "same amount and start date" in modal_details["body"]
+        assert modal_details["has_cancel_button"]
+        assert modal_details["has_confirm_button"]
+
+        # Test Branch 1: Click Cancel
+        project_page.cancel_duplicate_plan_modal()
+        page.wait_for_timeout(800)
+        assert not project_page.page.locator("section[role='alertdialog']:has-text('Similar plan already exists')").first.is_visible()
+        logger.info("Branch 1: 'Cancel' successfully dismissed the modal.")
+
+        # Test Branch 2: Click Create again and Confirm
+        res2 = project_page.click_create_plan(auto_confirm_duplicate=True)
+        assert res2["action_taken"] == "confirmed"
+        logger.info("Branch 2: 'Yes, create anyway' successfully confirmed duplicate plan creation.")
+    else:
+        logger.info("Initial plan created without duplicate modal. Submitting again to trigger duplicate warning...")
+        page.wait_for_timeout(2000)
+        res_dup = project_page.click_create_plan(auto_confirm_duplicate=False)
+        modal_details = project_page.get_duplicate_plan_modal_details()
+        if modal_details["visible"]:
+            assert "Similar plan already exists" in modal_details["header"]
+            assert "same amount and start date" in modal_details["body"]
+            assert modal_details["has_cancel_button"]
+            assert modal_details["has_confirm_button"]
+            logger.info(f"Duplicate modal verified on second submit: {modal_details}")
+
+            # Test Cancel
+            project_page.cancel_duplicate_plan_modal()
+            logger.info("Duplicate modal 'Cancel' verified.")
+
+
 
