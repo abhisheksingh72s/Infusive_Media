@@ -1374,11 +1374,94 @@ class ProjectPage:
             "active_errors": active_errors,
         }
 
-    def click_create_plan(self, generate_invoice_now: bool = False):
-        """Click 'Create Plan' or 'Create Plan & Generate Invoice Now'."""
+    def click_create_plan(self, generate_invoice_now: bool = False, auto_confirm_duplicate: bool = True) -> dict:
+        """
+        Click 'Create Plan' or 'Create Plan & Generate Invoice Now'.
+        Handles the duplicate plan confirmation alertdialog:
+          <header class="chakra-modal__header">Similar plan already exists</header>
+          <div class="chakra-modal__body">A billing plan (#...) already exists with the same amount and start date. Are you sure you want to create a new one?</div>
+          <footer class="chakra-modal__footer">
+            <button class="chakra-button">Cancel</button>
+            <button class="chakra-button">Yes, create anyway</button>
+          </footer>
+        """
         if generate_invoice_now:
             btn = self.page.locator("button:has-text('Create Plan & Generate Invoice Now')").first
         else:
             btn = self.page.locator("button[type='submit']:has-text('Create Plan'), button:has-text('Create Plan'):not(:has-text('Generate'))").first
         btn.click()
-        self.page.wait_for_timeout(1500)
+        self.page.wait_for_timeout(800)
+
+        result = {
+            "duplicate_modal_detected": False,
+            "header": "",
+            "message": "",
+            "action_taken": None,
+        }
+
+        modal = self.page.locator(
+            "section[role='alertdialog']:has-text('Similar plan already exists'), .chakra-modal__content:has-text('Similar plan already exists')"
+        ).first
+
+        try:
+            if modal.is_visible(timeout=3000):
+                result["duplicate_modal_detected"] = True
+                header_el = modal.locator(".chakra-modal__header, header").first
+                body_el = modal.locator(".chakra-modal__body, div").first
+                result["header"] = header_el.inner_text().strip() if header_el.is_visible() else "Similar plan already exists"
+                result["message"] = body_el.inner_text().strip() if body_el.is_visible() else ""
+                logger.info(f"Duplicate plan confirmation modal detected: '{result['header']}' - '{result['message']}'")
+
+                if auto_confirm_duplicate:
+                    confirm_btn = modal.locator("button:has-text('Yes, create anyway')").first
+                    if confirm_btn.is_visible():
+                        confirm_btn.click()
+                        result["action_taken"] = "confirmed"
+                        logger.info("Clicked 'Yes, create anyway' on duplicate plan modal.")
+                        self.page.wait_for_timeout(1000)
+        except Exception:
+            pass
+
+        self.page.wait_for_timeout(1000)
+        return result
+
+    def get_duplicate_plan_modal_details(self) -> dict:
+        """Inspect and return elements of the 'Similar plan already exists' alertdialog."""
+        modal = self.page.locator(
+            "section[role='alertdialog']:has-text('Similar plan already exists'), .chakra-modal__content:has-text('Similar plan already exists')"
+        ).first
+        if not modal.is_visible(timeout=2000):
+            return {"visible": False}
+
+        header = modal.locator(".chakra-modal__header, header").first.inner_text().strip()
+        body = modal.locator(".chakra-modal__body").first.inner_text().strip()
+        has_cancel = modal.locator("button:has-text('Cancel')").first.is_visible()
+        has_confirm = modal.locator("button:has-text('Yes, create anyway')").first.is_visible()
+
+        return {
+            "visible": True,
+            "header": header,
+            "body": body,
+            "has_cancel_button": has_cancel,
+            "has_confirm_button": has_confirm,
+        }
+
+    def cancel_duplicate_plan_modal(self):
+        """Click 'Cancel' on 'Similar plan already exists' alertdialog."""
+        modal = self.page.locator("section[role='alertdialog'], .chakra-modal__content").filter(
+            has_text="Similar plan already exists"
+        ).first
+        cancel_btn = modal.locator("button:has-text('Cancel')").first
+        cancel_btn.click()
+        self.page.wait_for_timeout(800)
+        logger.info("Cancelled duplicate plan creation via confirmation modal.")
+
+    def confirm_duplicate_plan_modal(self):
+        """Click 'Yes, create anyway' on 'Similar plan already exists' alertdialog."""
+        modal = self.page.locator("section[role='alertdialog'], .chakra-modal__content").filter(
+            has_text="Similar plan already exists"
+        ).first
+        confirm_btn = modal.locator("button:has-text('Yes, create anyway')").first
+        confirm_btn.click()
+        self.page.wait_for_timeout(1000)
+        logger.info("Confirmed duplicate plan creation via 'Yes, create anyway'.")
