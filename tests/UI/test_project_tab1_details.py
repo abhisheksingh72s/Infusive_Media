@@ -1,5 +1,6 @@
 import os
 import re
+import datetime
 import logging
 import pytest
 from playwright.sync_api import Page, expect
@@ -78,8 +79,9 @@ def test_tab1_project_details_comprehensive_validation(logged_in_page: Page):
         f"Expected '$' in Total Project Cost label after selecting USD, got: '{labels.get('total_project_cost_label')}'"
     )
 
-    # Fill Budget, Duration, Start Date
-    project_page.fill_project_details(budget="500", duration="10", start_date="2026-11-11")
+    # Fill Budget, Duration, Start Date (using small amount: $25)
+    today_str = datetime.date.today().strftime("%Y-%m-%d")
+    project_page.fill_project_details(budget="25", duration="10", start_date=today_str)
 
     # 6. Set Description
     test_desc = "Validated Tab 1 project details: services, currency, description, and status."
@@ -95,7 +97,7 @@ def test_tab1_project_details_comprehensive_validation(logged_in_page: Page):
     # 9. Verify Saved Data in View Mode
     updated_form = project_page.get_project_details_form_data()
     logger.info(f"Updated Form Data after save: {updated_form}")
-    assert updated_form["monthly_budget"] == "500", f"Expected Monthly Budget 500, got: {updated_form['monthly_budget']}"
+    assert updated_form["monthly_budget"] == "25", f"Expected Monthly Budget 25, got: {updated_form['monthly_budget']}"
     assert updated_form["duration"] == "10", f"Expected Duration 10, got: {updated_form['duration']}"
 
     # Verify Description
@@ -103,15 +105,15 @@ def test_tab1_project_details_comprehensive_validation(logged_in_page: Page):
     logger.info(f"Saved Project Description: '{saved_desc}'")
     assert test_desc in saved_desc or len(saved_desc) > 0, "Project description should persist"
 
-    # 10. Verify KPI Summary Deck Calculations
+    # 10. Verify KPI Summary Deck Calculations (Budget: $25, Total: $250)
     kpis = project_page.get_project_summary_kpis()
     logger.info(f"KPI Summary Cards: {kpis}")
 
-    # Monthly Budget should show $ 500
-    assert "500" in kpis.get("Monthly Budget", ""), f"Expected 500 in Monthly Budget KPI, got: {kpis.get('Monthly Budget')}"
-    # Total Project Cost = 500 * 10 = 5,000
-    assert "5,000" in kpis.get("Total Project Cost", "") or "5000" in kpis.get("Total Project Cost", ""), (
-        f"Expected 5,000 in Total Project Cost KPI, got: {kpis.get('Total Project Cost')}"
+    # Monthly Budget should show $ 25
+    assert "25" in kpis.get("Monthly Budget", ""), f"Expected 25 in Monthly Budget KPI, got: {kpis.get('Monthly Budget')}"
+    # Total Project Cost = 25 * 10 = 250
+    assert "250" in kpis.get("Total Project Cost", ""), (
+        f"Expected 250 in Total Project Cost KPI, got: {kpis.get('Total Project Cost')}"
     )
     # Duration = 10
     assert "10" in kpis.get("Duration (Months)", ""), f"Expected 10 in Duration KPI, got: {kpis.get('Duration (Months)')}"
