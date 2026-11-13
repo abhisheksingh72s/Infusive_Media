@@ -8,10 +8,11 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-# 4. Install essential OS curl/certificates for secure package downloads
+# 4. Install essential OS curl/certificates/git for containerized test runner
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # 5. Layer Caching: Install Python dependencies first
