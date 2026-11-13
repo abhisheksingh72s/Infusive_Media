@@ -9,6 +9,7 @@
 | **`DEF-003`** | **Major** | Projects (`/project-details`) | `Project Start Date` & `Billing Start Date` accept past dates without validation (Violates PM Ritesh Singh rule) | **REPORTED TO DEV (FIX PENDING)** |
 | **`DEF-004`** | **Major** | Projects (`/project-details`) | Project Status: `Inactive` KPI badge renders with Green styling instead of Red/Danger styling | **CONFIRMED** |
 | **`DEF-005`** | **Major** | Service Budget (`/project-details` Tab 2) | Estimated Amount calculation does not consider selected duration unit (Remove "Days", keep "Months" and "Years") | **CONFIRMED (RESOLUTION DEFINED)** |
+| **`DEF-006`** | **Major** | Projects (`/project-details` Tab 1 & 2) | Configured services can be removed from Project Details despite existing budget allocations | **REPORTED (ABHISHEK SINGH)** |
 
 ---
 
@@ -134,5 +135,31 @@
   - Eliminating `Days` prevents fractional month/calendar conversion discrepancies and enforces clean monthly/annual recurring budgeting.
 - **Automated Verification:**
   - Test: `tests/UI/test_project_tab2_budget.py::test_tab2_budget_duration_unit_calculation_audit`
+
+---
+
+### Defect 6: `DEF-006` — Configured Services Can Be Removed from Project Details Tab
+- **Severity:** Major (Data Integrity & Referential Integrity Violation)
+- **Priority:** High
+- **Reported By:** Abhishek Singh
+- **Module:** Project Management → Project Details (`/project-details`) → Tab 1 (Details) & Tab 2 (Budget)
+- **Title:** Configured Services Can Be Removed from Project Details Tab
+- **Actual Behavior:**
+  1. Create or open a project with multiple services selected under `Service Interested In`.
+  2. Navigate to the `Budget` tab (Tab 2).
+  3. Configure the budget for one of the selected services (e.g. Meta Ads, PPC).
+  4. Navigate back to the `Project Details` tab (Tab 1) and click `Edit Project`.
+  5. The configured service can still be unchecked / removed from the `Service Interested In` multi-select field.
+  6. Saving creates an orphaned record: the Budget tab continues to retain financial allocations for a service that no longer exists in Project Details.
+- **Expected Behavior:**
+  1. Once a service's budget has been configured in Tab 2, that service must be locked and protected from removal in the `Service Interested In` field on Tab 1.
+  2. The configured service's checkbox must be disabled/locked (e.g., `disabled` attribute with a tooltip: *"Budget already configured for this service; removal locked"*).
+  3. Users should still be allowed to add new services to `Service Interested In`.
+  4. Newly added services should dynamically appear in the `Budget` tab ready to be configured.
+- **Expected Result:**
+  - Configured services must be protected from removal to maintain consistency between Project Details and Service Budget records.
+- **Automated Verification:**
+  - Test: `tests/UI/test_project_tab1_details.py::test_tab1_configured_service_removal_protection_audit`
+
 
 
