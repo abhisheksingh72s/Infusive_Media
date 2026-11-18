@@ -130,32 +130,143 @@ class LeadWorkflow:
 
         raise ValueError(f"No credentials configured in environment or /api/User for '{search_clean}'.")
 
+    def create_lead_via_api(
+        self,
+        company_name: str,
+        country: str = "United States",
+        country_code: str = "+1",
+        country_id: int = 231,
+        email: str = None,
+        phone: str = None,
+        service_ids: list[int] = None,
+        source_id: int = 2,
+    ) -> dict:
+        """
+        Fast-Path API Lead Creation via Stepper 1 & Stepper 2:
+          Stepper 1: POST /api/Company/addUpdateCompany -> returns companyId
+          Stepper 2: POST /api/CompanyPoc/addUpdatepoc -> creates POC and assigns lead
+        """
+        import requests
+        from utilities.api import base_api
+
+        clean_slug = "".join(filter(str.isalnum, company_name.split()[0])).lower() or "enterprise"
+        comp_email = email or f"contact@{clean_slug}corp.com"
+        comp_phone = phone or "9876543210"
+        services = service_ids or [3, 2]
+
+        presales_email = os.getenv("USER_11_EMAIL") or os.getenv("EMAIL", "Admin@infusive.com")
+        presales_pass = os.getenv("USER_11_PASSWORD") or os.getenv("PASSWORD", "123456")
+
+        # 1. Login via API
+        token = base_api.get_token(user="admin")
+        if not token:
+            login_res = requests.post(
+                "https://infusive-back.jobvritta.com/api/user/login",
+                json={"email": presales_email, "password": presales_pass},
+                timeout=10,
+            )
+            token = login_res.json().get("token")
+
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+        # 2. Stepper 1: Add/Update Company
+        logger.info(f"API Stepper 1: Creating company '{company_name}' ({country}, {country_code}, ID={country_id})...")
+        step1_payload = {
+            "ServiceInterestedInIds": services,
+            "agencyPocId": None,
+            "cityId": 0,
+            "companyEmail": comp_email,
+            "companyName": company_name,
+            "companyPhone": comp_phone,
+            "countryId": country_id,
+            "industrytypeId": 2,
+            "notesResponse": f"<p>Onboarded client for {country}</p>",
+            "phoneCountryCode": country_code,
+            "postalZipCode": "",
+            "socialLinks": [],
+            "sourceId": source_id,
+            "stateId": 0,
+            "websiteUrl": f"https://www.{clean_slug}.com",
+        }
+
+        r1 = requests.post(
+            "https://infusive-back.jobvritta.com/api/Company/addUpdateCompany",
+            json=step1_payload,
+            headers=headers,
+            timeout=15,
+        )
+        assert r1.status_code == 200, f"Stepper 1 failed ({r1.status_code}): {r1.text}"
+        comp_id = r1.json().get("companyId")
+        logger.info(f"API Stepper 1 Success: Company ID = {comp_id}")
+
+        # 3. Stepper 2: Add POC
+        logger.info(f"API Stepper 2: Adding POC for company ID {comp_id}...")
+        poc_phone = f"97{comp_phone[2:]}"
+        step2_payload = [
+            {
+                "alternativeEmail": None,
+                "alternativePhone": None,
+                "companyId": comp_id,
+                "countryId": country_id,
+                "designationId": 2,
+                "email": f"poc_{comp_email}",
+                "linkedinUrl": "",
+                "name": f"POC {company_name}",
+                "phoneCountryCode": country_code,
+                "phoneNumber": poc_phone,
+                "whatsapp": poc_phone,
+            }
+        ]
+
+        r2 = requests.post(
+            "https://infusive-back.jobvritta.com/api/CompanyPoc/addUpdatepoc",
+            json=step2_payload,
+            headers=headers,
+            timeout=15,
+        )
+        assert r2.status_code == 200, f"Stepper 2 failed ({r2.status_code}): {r2.text}"
+        logger.info(f"API Stepper 2 Success: {r2.json().get('message')}")
+
+        # 4. Resolve lead allocation
+        alloc = self.resolve_lead_allocation(country=country)
+        assigned_to = alloc.get("name")
+        logger.info(f"Lead Created via API: company='{company_name}', assigned_to='{assigned_to or 'Unassigned (Lead Pool)'}'")
+
+        return {
+            "company_name": company_name,
+            "email": comp_email,
+            "phone": comp_phone,
+            "assigned_to": assigned_to,
+            "company_id": comp_id,
+        }
+
     def create_quick_lead(
         self,
         company_name: str = None,
         country: str = "United States",
         country_code: str = "+1",
+        email: str = None,
+        phone: str = None,
+        service: str = None,
     ) -> dict:
         """Log in as Pre-Sales, add a Quick Lead, and resolve assigned BDM via allocation engine."""
-        fk = Faker("en_US")
-        first_name = fk.first_name()
-        last_name = fk.last_name()
         if not company_name:
-            company_base = fk.company().replace("'", "").replace(",", "").replace("-", " ")
-            suffix = fk.company_suffix()
-            company_name = f"{company_base} {suffix}"
+            company_name = f"Enterprise Solutions {country[:3].upper()}"
 
-        domain = "".join(filter(str.isalnum, company_name.split()[0])).lower() or "enterprise"
-        email = f"{first_name.lower()}.{last_name.lower()}@{domain}.com"
-        phone = fk.numerify("98########")
+        clean_slug = "".join(filter(str.isalnum, company_name.split()[0])).lower() or "enterprise"
+        if not email:
+            email = f"contact@{clean_slug}corp.com"
+        if not phone:
+            fk = Faker()
+            phone = fk.numerify("98########")
 
         presales_email = os.getenv("USER_11_EMAIL") or os.getenv("EMAIL")
         presales_pass = os.getenv("USER_11_PASSWORD") or os.getenv("PASSWORD")
         if not presales_email or not presales_pass:
             raise ValueError("Pre-Sales credentials (USER_11_EMAIL / USER_11_PASSWORD or EMAIL / PASSWORD) not set in environment.")
 
-        logger.info(f"Creating Quick Lead for '{company_name}' as Pre-Sales ({presales_email})...")
-        self.login_page.load()
+        logger.info(f"Creating Quick Lead for '{company_name}' ({country}, {country_code}) as Pre-Sales ({presales_email})...")
+        self.login_page.logout()
         self.login_page.login(presales_email, presales_pass)
         self.login_page.wait_for_dashboard()
 
@@ -168,6 +279,7 @@ class LeadWorkflow:
             phone=phone,
             country=country,
             country_code=country_code,
+            service=service,
         )
         self.company_page.click_save_quick_lead()
         self.page.wait_for_timeout(2000)

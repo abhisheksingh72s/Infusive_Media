@@ -37,23 +37,26 @@ class ProjectDetailsWorkflow:
         self.page.wait_for_timeout(800)
         self.project_page.click_edit_project_icon()
 
-        # 1. Select Services Interested In
-        target_services = services or ["PPC", "Meta Ads"]
-        try:
-            self.project_page.select_services_interested_in(target_services)
-        except Exception as e:
-            logger.warning(f"Services selection warning: {e}")
-
-        # 2. Select Currency
+        # 1. Select Currency FIRST so changing currency doesn't reset service selection
         self.project_page.select_currency(currency)
+        self.page.wait_for_timeout(400)
 
-        # 3. Fill Monthly Budget, Duration, Start Date
+        # 2. Fill Monthly Budget, Duration, Start Date
         today_date = start_date or datetime.now().strftime("%Y-%m-%d")
         self.project_page.fill_project_details(
             budget=str(monthly_budget),
             duration=str(duration),
             start_date=today_date,
         )
+        self.page.wait_for_timeout(400)
+
+        # 3. Select Services Interested In
+        target_services = services or ["PPC", "Meta Ads"]
+        try:
+            self.project_page.select_services_interested_in(target_services)
+        except Exception as e:
+            logger.warning(f"Services selection warning: {e}")
+        self.page.wait_for_timeout(400)
 
         # 4. Set Status to Active
         try:

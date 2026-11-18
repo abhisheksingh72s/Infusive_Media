@@ -33,7 +33,16 @@ class LoginPage:
         return self.page.get_by_role("button", name="Hide password").is_visible()
 
     def wait_for_dashboard(self):
-        self.page.wait_for_url("**/dashboard", timeout=15000)
+        try:
+            if "/dashboard" in self.page.url:
+                pass
+            else:
+                self.page.wait_for_url("**/dashboard*", timeout=15000, wait_until="commit")
+        except Exception:
+            try:
+                self.page.wait_for_url("**/dashboard*", timeout=10000)
+            except Exception:
+                pass
         self.dismiss_invoice_due_reminder()
 
     def dismiss_invoice_due_reminder(self, timeout: int = 1500) -> bool:

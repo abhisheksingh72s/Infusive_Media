@@ -202,10 +202,12 @@ class CustomerPage:
         Switch between sub-tabs under 'Client Profile':
         - Basic Information
         - Billing Address
-        - Tax & GST Details
+        - Tax Details (formerly Tax & GST Details)
         """
         logger.info(f"Switching to Client Profile sub-tab: '{subtab_name}'...")
-        subtab_btn = self.page.locator("button.chakra-stack").filter(has_text=subtab_name).first
+        # Support both 'Tax Details' and legacy 'Tax & GST Details'
+        search_term = "Tax" if "tax" in subtab_name.lower() else subtab_name
+        subtab_btn = self.page.locator("button.chakra-stack").filter(has_text=search_term).first
         if subtab_btn.count() > 0 and subtab_btn.is_visible():
             subtab_btn.click()
             self.page.wait_for_timeout(800)
@@ -339,14 +341,26 @@ class CustomerPage:
         """Extract structured fields from Billing Address sub-tab."""
         panel = self.page.locator(".chakra-tabs__tab-panel:not([hidden])").first
 
-        same_as_reg = panel.locator("label.chakra-checkbox:has-text('Same as Registered Address') input").is_checked()
-        addr1 = panel.locator(".chakra-form-control:has-text('Address Line 1') input").input_value()
-        addr2 = panel.locator(".chakra-form-control:has-text('Address Line 2') input").input_value()
-        country = panel.locator(".chakra-form-control:has-text('Country') select").input_value()
-        state = panel.locator(".chakra-form-control:has-text('State') select").input_value()
-        city_sel = panel.locator(".chakra-form-control:has-text('City') select")
-        city = city_sel.input_value() if city_sel.count() > 0 else ""
-        postal = panel.locator(".chakra-form-control:has-text('Postal') input").input_value()
+        same_as_reg = panel.locator("label.chakra-checkbox:has-text('Same as Registered Address') input").first.is_checked()
+        
+        def _get_input(label_name: str) -> str:
+            loc = panel.locator(f".chakra-form-control:has(label:has-text('{label_name}')) input").first
+            if loc.count() == 0 or not loc.is_visible():
+                loc = panel.locator(f"input[placeholder*='{label_name}'], input[name*='{label_name.lower()}']").first
+            return loc.input_value() if loc.count() > 0 and loc.is_visible() else ""
+
+        def _get_select(label_name: str) -> str:
+            loc = panel.locator(f".chakra-form-control:has(label:has-text('{label_name}')) select").first
+            if loc.count() == 0 or not loc.is_visible():
+                loc = panel.locator(f"select[name*='{label_name.lower()}']").first
+            return loc.input_value() if loc.count() > 0 and loc.is_visible() else ""
+
+        addr1 = _get_input("Address Line 1")
+        addr2 = _get_input("Address Line 2")
+        country = _get_select("Country")
+        state = _get_select("State")
+        city = _get_select("City")
+        postal = _get_input("Postal")
         
         pos_sel = panel.locator("div:has-text('Place of Supply') select").first
         place_of_supply = pos_sel.input_value() if pos_sel.count() > 0 and pos_sel.is_visible() else ""
@@ -457,7 +471,7 @@ class CustomerPage:
         # Radio selection: Yes, No, Not Sure
         radio_checked = "no"
         for val in ["yes", "no", "not_sure"]:
-            r = panel.locator(f"input[type='radio'][value='{val}']")
+            r = panel.locator(f"input[type='radio'][value='{val}']").first
             if r.count() > 0 and r.is_checked():
                 radio_checked = val
                 break
