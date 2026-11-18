@@ -24,6 +24,7 @@ class ProjectBillingWorkflow:
         currency: str = "USD",
         unit_price: str = "500",
         qty: str = "1",
+        service_name: str = None,
         start_date: str = None,
         next_invoice_date: str = None,
         auto_generate: bool = True,
@@ -37,7 +38,7 @@ class ProjectBillingWorkflow:
         effective_start = start_date or today_str
         effective_next = next_invoice_date or today_str
 
-        logger.info(f"Setting up Tab 5 Recurring Plan (Cycle: {cycle}, Currency: {currency}, Next Date: {effective_next}, GenerateNow: {generate_invoice_now})...")
+        logger.info(f"Setting up Tab 5 Recurring Plan (Cycle: {cycle}, Currency: {currency}, Service: {service_name}, Next Date: {effective_next}, GenerateNow: {generate_invoice_now})...")
         # Ensure fresh project data and budget state from Tab 1 & Tab 2 saves
         logger.info("Reloading page to synchronize project duration and service budget into Tab 5...")
         self.page.reload()
@@ -55,13 +56,16 @@ class ProjectBillingWorkflow:
         self.project_page.click_add_service()
         self.project_page.fill_service_row(
             row_index=0,
-            service_name="Meta Ads",
+            service_name=service_name or "",
             service_option_index=1,
             description=f"{cycle} Retainer Service",
             qty=qty,
             unit_price=unit_price,
             gst_percent="18",
         )
+
+        # Ensure recipient email is selected
+        self.project_page.select_to_email()
 
         captured_config_id = None
         captured_project_id = None

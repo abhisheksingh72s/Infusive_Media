@@ -392,26 +392,35 @@ class ProjectPage:
             ".project-details-field:has-text('Service Interested In') button, button:has-text('Select Services'), button[id*='menu-button']"
         ).first
         svc_btn.scroll_into_view_if_needed()
-        svc_btn.click()
-        self.page.wait_for_timeout(600)
 
         for svc in services:
+            # Ensure menu is open
+            menu_list = self.page.locator("[role='menu'], .chakra-menu__menu-list").first
+            if not menu_list.is_visible():
+                svc_btn.click()
+                self.page.wait_for_timeout(400)
+
             item = self.page.locator(f"[role='menuitem']:has-text('{svc}'), label:has-text('{svc}')").first
             if item.is_visible():
                 checkbox = item.locator("input[type='checkbox']").first
-                if checkbox.count() > 0 and not checkbox.is_checked():
-                    item.click()
-                    logger.info(f"Checked service: '{svc}'")
-                elif checkbox.count() == 0:
+                if checkbox.count() > 0:
+                    if not checkbox.is_checked():
+                        checkbox.check(force=True)
+                        logger.info(f"Directly checked service checkbox: '{svc}'")
+                    else:
+                        logger.info(f"Service checkbox already checked: '{svc}'")
+                else:
                     item.click()
                     logger.info(f"Clicked service item: '{svc}'")
                 self.page.wait_for_timeout(300)
             else:
                 logger.warning(f"Service option '{svc}' not visible in menu.")
 
-        # Dismiss menu
-        self.page.keyboard.press("Escape")
-        self.page.wait_for_timeout(400)
+        # Close menu cleanly by clicking outside or pressing Escape
+        menu_list = self.page.locator("[role='menu'], .chakra-menu__menu-list").first
+        if menu_list.is_visible():
+            self.page.keyboard.press("Escape")
+            self.page.wait_for_timeout(400)
 
     def set_project_status(self, status_label: str = "Active"):
         """Select Project Status in Edit Project mode ('Active' or 'Inactive')."""
@@ -1184,6 +1193,31 @@ class ProjectPage:
 
         self.page.wait_for_timeout(400)
 
+    def select_to_email(self, email_address: str = None):
+        """Select recipient email in the 'To *' field on Tab 5 if not selected."""
+        logger.info(f"Selecting 'To' email recipient: '{email_address}'...")
+        to_btn = self.page.locator("button:has-text('Select emails')").first
+        if to_btn.count() > 0 and to_btn.is_visible():
+            to_btn.click()
+            self.page.wait_for_timeout(400)
+            menu = self.page.locator("div[role='menu'], div.chakra-menu__menu-list, [role='listbox']").first
+            if menu.is_visible():
+                if email_address:
+                    opt = menu.locator(f"button:has-text('{email_address}'), [role='menuitem']:has-text('{email_address}')").first
+                    if opt.is_visible():
+                        opt.click()
+                    else:
+                        first_btn = menu.locator("button, [role='menuitem']").first
+                        if first_btn.is_visible():
+                            first_btn.click()
+                else:
+                    first_btn = menu.locator("button, [role='menuitem']").first
+                    if first_btn.is_visible():
+                        first_btn.click()
+                self.page.wait_for_timeout(300)
+            self.page.keyboard.press("Escape")
+            self.page.wait_for_timeout(300)
+
     def toggle_auto_generate_invoice(self, enable: bool = True):
         """Toggle Auto-generate invoice switch/checkbox."""
         logger.info(f"Setting auto-generate invoice to: {enable}")
@@ -1400,25 +1434,29 @@ class ProjectPage:
         }
 
         modal = self.page.locator(
-            "section[role='alertdialog']:has-text('Similar plan already exists'), .chakra-modal__content:has-text('Similar plan already exists')"
+            "section[role='alertdialog']:has-text('Similar plan already exists'), "
+            ".chakra-modal__content:has-text('Similar plan already exists'), "
+            "section[role='alertdialog'], [role='alertdialog']"
         ).first
 
         try:
-            if modal.is_visible(timeout=3000):
+            if modal.is_visible(timeout=5000):
                 result["duplicate_modal_detected"] = True
                 header_el = modal.locator(".chakra-modal__header, header").first
-                body_el = modal.locator(".chakra-modal__body, div").first
+                body_el = modal.locator(".chakra-modal__body").first
+                full_modal_text = modal.inner_text().strip()
                 result["header"] = header_el.inner_text().strip() if header_el.is_visible() else "Similar plan already exists"
-                result["message"] = body_el.inner_text().strip() if body_el.is_visible() else ""
+                result["message"] = body_el.inner_text().strip() if body_el.is_visible() else full_modal_text
+                result["full_text"] = full_modal_text
                 logger.info(f"Duplicate plan confirmation modal detected: '{result['header']}' - '{result['message']}'")
 
                 if auto_confirm_duplicate:
-                    confirm_btn = modal.locator("button:has-text('Yes, create anyway')").first
+                    confirm_btn = modal.locator("button:has-text('create anyway'), button:has-text('Yes, create anyway'), button:has-text('Yes'), button:has-text('Confirm')").first
                     if confirm_btn.is_visible():
                         confirm_btn.click()
                         result["action_taken"] = "confirmed"
-                        logger.info("Clicked 'Yes, create anyway' on duplicate plan modal.")
-                        self.page.wait_for_timeout(1000)
+                        logger.info("Clicked confirmation button on duplicate plan modal.")
+                        self.page.wait_for_timeout(1500)
         except Exception:
             pass
 
@@ -1436,7 +1474,7 @@ class ProjectPage:
         header = modal.locator(".chakra-modal__header, header").first.inner_text().strip()
         body = modal.locator(".chakra-modal__body").first.inner_text().strip()
         has_cancel = modal.locator("button:has-text('Cancel')").first.is_visible()
-        has_confirm = modal.locator("button:has-text('Yes, create anyway')").first.is_visible()
+        has_confirm = modal.locator("button:has-text('Create anyway'), button:has-text('Yes, create anyway')").first.is_visible()
 
         return {
             "visible": True,
@@ -1457,11 +1495,11 @@ class ProjectPage:
         logger.info("Cancelled duplicate plan creation via confirmation modal.")
 
     def confirm_duplicate_plan_modal(self):
-        """Click 'Yes, create anyway' on 'Similar plan already exists' alertdialog."""
+        """Click 'Create anyway' on 'Similar plan already exists' alertdialog."""
         modal = self.page.locator("section[role='alertdialog'], .chakra-modal__content").filter(
             has_text="Similar plan already exists"
         ).first
-        confirm_btn = modal.locator("button:has-text('Yes, create anyway')").first
+        confirm_btn = modal.locator("button:has-text('Create anyway'), button:has-text('Yes, create anyway')").first
         confirm_btn.click()
         self.page.wait_for_timeout(1000)
-        logger.info("Confirmed duplicate plan creation via 'Yes, create anyway'.")
+        logger.info("Confirmed duplicate plan creation via 'Create anyway'.")

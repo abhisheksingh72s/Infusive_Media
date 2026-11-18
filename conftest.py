@@ -71,6 +71,34 @@ def pytest_addoption(parser):
         default="stg",
         help="Target API Environment: stg (default) or prod"
     )
+    parser.addoption(
+        "--company",
+        "--num-companies",
+        dest="company",
+        action="store",
+        default=1,
+        type=int,
+        help="Number of companies to process (e.g. --company=1)"
+    )
+    parser.addoption(
+        "--poc",
+        "--num-pocs",
+        dest="poc",
+        action="store",
+        default=2,
+        type=int,
+        help="Number of POCs per company to test (e.g. --poc=2)"
+    )
+
+
+@pytest.fixture(scope="session")
+def company_count(request) -> int:
+    return int(request.config.getoption("company", default=1) or 1)
+
+
+@pytest.fixture(scope="session")
+def poc_count(request) -> int:
+    return int(request.config.getoption("poc", default=2) or 2)
 
 
 @pytest.fixture(scope="session")
@@ -85,7 +113,6 @@ def target_env(request) -> str:
 
 def pytest_configure(config):
     REPORTS_ROOT.mkdir(exist_ok=True)
-
 
 
 def pytest_collection_modifyitems(items):

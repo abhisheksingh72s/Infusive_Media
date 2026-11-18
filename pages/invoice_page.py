@@ -195,9 +195,11 @@ class InvoicePage:
 
     def find_invoice_row_by_number(self, invoice_no: str):
         """Find the table row matching a specific invoice number."""
+        clean_inv = invoice_no.split()[0].strip().lower()
         rows = self.get_table_rows().all()
         for r in rows:
-            if invoice_no.lower() in r.locator("td:nth-child(2)").inner_text().lower():
+            td2_text = r.locator("td:nth-child(2)").inner_text().lower()
+            if clean_inv in td2_text:
                 return r
         return None
 
@@ -215,9 +217,13 @@ class InvoicePage:
         if not row:
             raise ValueError(f"Invoice '{invoice_no}' not found in table.")
 
-        download_btn = row.locator("td:last-child button, button[title*='download'], button[aria-label*='download']").first
+        download_btn = row.locator("td:last-child button, button[title*='download'], button[aria-label*='download'], td:nth-child(17) button").first
+        if download_btn.count() > 0:
+            download_btn.scroll_into_view_if_needed()
+            self.page.wait_for_timeout(300)
         if not download_btn.is_visible():
-            download_btn = row.locator("td:nth-child(17) button").first
+            self.page.evaluate("document.querySelector('table')?.parentElement?.scrollBy(2000, 0)")
+            self.page.wait_for_timeout(500)
 
         with self.page.expect_download(timeout=20000) as download_info:
             download_btn.click()
@@ -250,16 +256,97 @@ class InvoicePage:
         else:
             logger.warning(f"Status select not interactive on row for '{invoice_no}'.")
 
-    def verify_invoice(self, invoice_no: str):
-        """Click 'Verify invoice' button if available on row."""
-        logger.info(f"Verifying invoice: '{invoice_no}'")
+    def get_invoice_status_options(self, invoice_no: str) -> list:
+        """Get all available options in the status select for an invoice."""
         row = self.find_invoice_row_by_number(invoice_no)
         if not row:
             raise ValueError(f"Invoice '{invoice_no}' not found in table.")
+        status_select = row.locator("td:nth-child(13) select").first
+        if status_select.is_visible():
+            options = status_select.locator("option").all()
+            return [opt.inner_text().strip() for opt in options]
+        return []
+
+    def verify_invoice(self, invoice_no: str, share_paypal_link: bool = True, confirm: bool = True) -> dict:
+        """
+        Click 'Verify invoice' button on row and interact with the 'Verify Invoice' modal.
+        
+        Args:
+            invoice_no: The invoice number (e.g. 'INV-2026-0007').
+            share_paypal_link: Whether to check 'Share PayPal link to send to email'.
+            confirm: If True clicks 'Yes, verify'; if False clicks 'No, go back'.
+            
+        Returns:
+            dict containing modal information and action taken.
+        """
+        logger.info(f"Verifying invoice: '{invoice_no}' (share_paypal_link={share_paypal_link}, confirm={confirm})")
+        row = self.find_invoice_row_by_number(invoice_no)
+        if not row:
+            raise ValueError(f"Invoice '{invoice_no}' not found in table.")
+        
         verify_btn = row.locator("button:has-text('Verify invoice'), button:has-text('Verify')").first
-        if verify_btn.is_visible():
-            verify_btn.click()
-            self.page.wait_for_timeout(1000)
+        if verify_btn.count() > 0:
+            verify_btn.scroll_into_view_if_needed()
+            self.page.wait_for_timeout(500)
+        if not verify_btn.is_visible():
+            self.page.evaluate("document.querySelector('table')?.parentElement?.scrollBy(1500, 0)")
+            self.page.wait_for_timeout(500)
+        if not verify_btn.is_visible():
+            logger.warning(f"Verify button not visible on row for '{invoice_no}'.")
+            return {"modal_opened": False, "reason": "Verify button not visible"}
+
+        verify_btn.click()
+        self.page.wait_for_timeout(1000)
+
+        modal = self.page.locator("section[role='dialog']").first
+        if not modal.is_visible():
+            logger.warning("Verify Invoice modal not visible after clicking Verify button.")
+            return {"modal_opened": False, "reason": "Modal not visible"}
+
+        header_text = modal.locator("header").inner_text().strip() if modal.locator("header").count() > 0 else ""
+        body_text = modal.locator(".chakra-modal__body").inner_text().strip() if modal.locator(".chakra-modal__body").count() > 0 else ""
+        
+        # Checkbox handling
+        checkbox = modal.locator("input.chakra-checkbox__input, input[type='checkbox']").first
+        checkbox_label = modal.locator("label.chakra-checkbox, label:has-text('Share PayPal link')").first
+        
+        initial_checked = False
+        if checkbox.count() > 0:
+            initial_checked = checkbox.is_checked()
+            if share_paypal_link and not initial_checked:
+                logger.info("Checking 'Share PayPal link to send to email' checkbox...")
+                checkbox_label.click()
+                self.page.wait_for_timeout(500)
+            elif not share_paypal_link and initial_checked:
+                logger.info("Unchecking 'Share PayPal link to send to email' checkbox...")
+                checkbox_label.click()
+                self.page.wait_for_timeout(500)
+
+        result = {
+            "modal_opened": True,
+            "header": header_text,
+            "body": body_text,
+            "initial_checkbox_state": initial_checked,
+            "final_checkbox_state": share_paypal_link,
+            "action_taken": None,
+        }
+
+        if confirm:
+            yes_btn = modal.locator("button:has-text('Yes, verify'), button:has-text('Verify')").first
+            if yes_btn.is_visible():
+                yes_btn.click()
+                result["action_taken"] = "confirmed"
+                logger.info(f"Clicked 'Yes, verify' for invoice '{invoice_no}'.")
+                self.page.wait_for_timeout(2000)
+        else:
+            no_btn = modal.locator("button:has-text('No, go back'), button:has-text('Cancel')").first
+            if no_btn.is_visible():
+                no_btn.click()
+                result["action_taken"] = "cancelled"
+                logger.info(f"Clicked 'No, go back' for invoice '{invoice_no}'.")
+                self.page.wait_for_timeout(1000)
+
+        return result
 
     def reject_invoice(self, invoice_no: str, reason: str = "Client Requested Cancellation"):
         """Click 'Reject invoice' button if available on row."""

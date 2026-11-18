@@ -406,13 +406,61 @@ class BillingPlansPage:
             self.page.keyboard.press("Escape")
         self.page.wait_for_timeout(1000)
 
-    def submit_update_plan(self, generate_invoice_now: bool = False):
-        """Submit the update billing plan form."""
+    def get_edit_modal_currency_options(self) -> list:
+        """Get available currency options in the Update Billing Plan modal."""
+        modal = self.page.locator("section[role='dialog'], div.chakra-modal__content").first
+        if not modal.is_visible():
+            raise RuntimeError("Update Billing Plan modal is not open.")
+        currency_select = modal.locator("select[name='currencyCode']").first
+        options = currency_select.locator("option").all()
+        return [opt.get_attribute("value") or opt.inner_text().strip() for opt in options]
+
+    def set_edit_modal_currency(self, currency_code: str):
+        """Set the currency in the Update Billing Plan modal (e.g. 'EUR', 'INR', 'USD', 'GBP')."""
+        logger.info(f"Setting currency in Update Billing Plan modal to: '{currency_code}'")
+        modal = self.page.locator("section[role='dialog'], div.chakra-modal__content").first
+        if not modal.is_visible():
+            raise RuntimeError("Update Billing Plan modal is not open.")
+        currency_select = modal.locator("select[name='currencyCode']").first
+        currency_select.select_option(currency_code)
+        self.page.wait_for_timeout(500)
+        logger.info(f"Modal currency set to: '{currency_code}'")
+
+    def submit_update_plan(self, generate_invoice_now: bool = False, auto_confirm_duplicate: bool = True):
+        """Submit the update billing plan form and handle duplicate confirmation dialog if shown."""
+        modal = self.page.locator("section[role='dialog'], div.chakra-modal__content").first
         if generate_invoice_now:
             logger.info("Submitting via 'Update Plan & Generate Invoice Now'...")
-            btn = self.page.locator("button:has-text('Update Plan & Generate Invoice Now')").first
+            btn = modal.locator("button:has-text('Update Plan & Generate Invoice Now'), button:has-text('Generate Invoice Now')").first
+            if not btn.is_visible():
+                btn = self.page.locator("button:has-text('Update Plan & Generate Invoice Now'), button:has-text('Generate Invoice Now')").first
         else:
             logger.info("Submitting via 'Update Plan'...")
-            btn = self.page.locator("button:has-text('Update Plan')").first
+            btn = modal.locator("button:has-text('Update Plan'):not(:has-text('Generate'))").first
+            if not btn.is_visible():
+                btn = self.page.locator("button:has-text('Update Plan'):not(:has-text('Generate'))").first
         btn.click()
         self.page.wait_for_timeout(1500)
+
+        # Handle duplicate / similar plan alertdialog if presented
+        if auto_confirm_duplicate:
+            try:
+                dup_modal = self.page.locator(
+                    "section[role='alertdialog']:has-text('Similar plan already exists'), "
+                    ".chakra-modal__content:has-text('Similar plan already exists'), "
+                    "section[role='alertdialog']"
+                ).first
+                if dup_modal.is_visible(timeout=3000):
+                    header_txt = dup_modal.inner_text().strip()
+                    logger.info(f"Duplicate/similar plan confirmation modal detected: {header_txt[:100]}...")
+                    confirm_btn = dup_modal.locator(
+                        "button:has-text('create anyway'), button:has-text('Yes, create anyway'), button:has-text('Update anyway'), button:has-text('Yes'), button:has-text('Confirm')"
+                    ).first
+                    if confirm_btn.is_visible():
+                        confirm_btn.click()
+                        logger.info("Clicked confirmation button on duplicate plan alertdialog.")
+                        self.page.wait_for_timeout(1500)
+            except Exception as e:
+                logger.warning(f"Note during duplicate modal check: {e}")
+
+        self.page.wait_for_timeout(2000)
